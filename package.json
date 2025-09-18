@@ -1,0 +1,17 @@
+{
+  "name": "hat-web",
+  "version": "1.0.0",
+  "description": "Hat Game - WebSocket MVP",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.2",
+    "express": "^4.18.2"
+  },
+  "keywords": ["game", "websocket", "hat", "words"],
+  "author": "",
+  "license": "MIT"
+}
