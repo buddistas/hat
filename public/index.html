@@ -586,13 +586,22 @@
     <script>
         let ws;
         let gameState = {};
-        let timerInterval;
-        let timeLeft = 60;
         let gameSetup = {
             players: [],
             teams: [],
             roundDuration: 60,
             wordsCount: 100
+        };
+
+        // Клиентский таймер с использованием performance.now()
+        let timerState = {
+            isRunning: false,
+            isPaused: false,
+            startTime: null,
+            duration: 60000, // 60 секунд в миллисекундах
+            remainingTime: 60000,
+            animationFrameId: null,
+            carriedTime: 0 // Перенесенное время между раундами
         };
 
         // Подключение к WebSocket
@@ -618,7 +627,11 @@
                     console.log('Получено событие round_completed:', message.data);
                     gameState.currentRound = message.data.currentRound;
                     gameState.scores = message.data.scores;
-                    gameState.timeLeft = message.data.timeLeft;
+                    
+                    // Вычисляем перенесенное время
+                    const carriedTime = Math.ceil(timerState.remainingTime / 1000);
+                    timerState.carriedTime = carriedTime;
+                    
                     showRoundScores();
                     showScreen('roundScoresScreen');
                 } else if (message.type === 'handoff_screen') {
@@ -772,27 +785,27 @@
         function wordGuessed() {
             const currentTeam = getCurrentTeam();
             if (currentTeam) {
-                sendEvent('word_guessed', { teamId: currentTeam.id, timeLeft: timeLeft });
+                sendEvent('word_guessed', { teamId: currentTeam.id });
             }
         }
 
         function wordPassed() {
             const currentTeam = getCurrentTeam();
             if (currentTeam) {
-                sendEvent('word_passed', { teamId: currentTeam.id, timeLeft: timeLeft });
+                sendEvent('word_passed', { teamId: currentTeam.id });
             }
         }
 
         function pauseGame() {
             const pauseBtn = document.getElementById('pauseBtn');
-            if (gameState.isPaused) {
+            if (timerState.isPaused) {
                 sendEvent('resume_game');
                 pauseBtn.textContent = 'Пауза';
-                startTimer(timeLeft);
+                resumeTimer();
             } else {
                 sendEvent('pause_game');
                 pauseBtn.textContent = 'Продолжить';
-                clearInterval(timerInterval);
+                pauseTimer();
             }
         }
 
@@ -805,7 +818,7 @@
 
         function newGame() {
             showScreen('setupScreen');
-            clearInterval(timerInterval);
+            stopTimer();
             // Сброс настроек игры
             gameSetup = {
                 players: [],
@@ -813,6 +826,8 @@
                 roundDuration: 60,
                 wordsCount: 100
             };
+            // Сброс состояния таймера
+            resetTimer();
         }
 
         function getCurrentTeam() {
@@ -884,14 +899,14 @@
                 });
             }
             
-            // Показываем оставшееся время
-            if (gameState.timeLeft !== undefined) {
+            // Показываем перенесенное время
+            if (timerState.carriedTime > 0) {
                 const timeInfo = document.createElement('div');
                 timeInfo.className = 'score-item';
                 timeInfo.style.marginTop = '20px';
                 timeInfo.innerHTML = `
-                    <h3>Осталось времени</h3>
-                    <div class="score">${gameState.timeLeft} сек</div>
+                    <h3>Перенесено времени</h3>
+                    <div class="score">${timerState.carriedTime} сек</div>
                 `;
                 roundScores.appendChild(timeInfo);
             }
@@ -930,8 +945,8 @@
                 // Переходим к следующему раунду
                 sendEvent('continue_round');
                 showScreen('gameScreen');
-                // Запускаем таймер с полным временем для нового раунда
-                startTimer(gameSetup.roundDuration);
+                // Запускаем таймер с учетом перенесенного времени
+                startTimer(gameSetup.roundDuration, timerState.carriedTime);
             }
         }
 
@@ -976,25 +991,92 @@
             document.getElementById(screenId).classList.add('active');
         }
 
-        function startTimer(duration) {
-            timeLeft = duration;
-            clearInterval(timerInterval);
+        // Новые функции для работы с таймером
+        function startTimer(durationSeconds, carriedTimeSeconds = 0) {
+            stopTimer();
             
-            timerInterval = setInterval(() => {
-                timeLeft--;
-                document.getElementById('timer').textContent = timeLeft;
-                
-                if (timeLeft <= 0) {
-                    clearInterval(timerInterval);
-                    // Время истекло, завершаем раунд
-                    sendEvent('time_up');
+            // Устанавливаем длительность с учетом перенесенного времени
+            const totalDuration = (durationSeconds + carriedTimeSeconds) * 1000;
+            timerState.duration = totalDuration;
+            timerState.remainingTime = totalDuration;
+            timerState.startTime = performance.now();
+            timerState.isRunning = true;
+            timerState.isPaused = false;
+            timerState.carriedTime = 0; // Сбрасываем перенесенное время после использования
+            
+            updateTimerDisplay();
+            timerLoop();
+        }
+
+        function stopTimer() {
+            timerState.isRunning = false;
+            timerState.isPaused = false;
+            if (timerState.animationFrameId) {
+                cancelAnimationFrame(timerState.animationFrameId);
+                timerState.animationFrameId = null;
+            }
+        }
+
+        function pauseTimer() {
+            if (timerState.isRunning && !timerState.isPaused) {
+                timerState.isPaused = true;
+                if (timerState.animationFrameId) {
+                    cancelAnimationFrame(timerState.animationFrameId);
+                    timerState.animationFrameId = null;
                 }
-            }, 1000);
+            }
+        }
+
+        function resumeTimer() {
+            if (timerState.isRunning && timerState.isPaused) {
+                timerState.isPaused = false;
+                // Корректируем время начала с учетом паузы
+                timerState.startTime = performance.now() - (timerState.duration - timerState.remainingTime);
+                timerLoop();
+            }
+        }
+
+        function resetTimer() {
+            stopTimer();
+            timerState = {
+                isRunning: false,
+                isPaused: false,
+                startTime: null,
+                duration: 60000,
+                remainingTime: 60000,
+                animationFrameId: null,
+                carriedTime: 0
+            };
+        }
+
+        function timerLoop() {
+            if (!timerState.isRunning || timerState.isPaused) {
+                return;
+            }
+
+            const now = performance.now();
+            const elapsed = now - timerState.startTime;
+            timerState.remainingTime = Math.max(0, timerState.duration - elapsed);
+
+            updateTimerDisplay();
+
+            if (timerState.remainingTime <= 0) {
+                // Время истекло
+                timerState.isRunning = false;
+                sendEvent('time_up');
+            } else {
+                timerState.animationFrameId = requestAnimationFrame(timerLoop);
+            }
+        }
+
+        function updateTimerDisplay() {
+            const seconds = Math.ceil(timerState.remainingTime / 1000);
+            document.getElementById('timer').textContent = seconds;
         }
 
         function showHandoffScreen(data) {
             // Останавливаем таймер
-            clearInterval(timerInterval);
+            stopTimer();
             
             // Обновляем информацию о следующем игроке
             const nextPlayerName = document.getElementById('nextPlayerName');
@@ -1040,6 +1122,17 @@
                 playerCountSelect.value = '4';
             }
         }
+
+        // Обработка изменения видимости страницы для корректировки таймера
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden && timerState.isRunning && !timerState.isPaused) {
+                // Страница снова видима, корректируем таймер
+                const now = performance.now();
+                const elapsed = now - timerState.startTime;
+                timerState.remainingTime = Math.max(0, timerState.duration - elapsed);
+                updateTimerDisplay();
+            }
+        });
 
         // Инициализация при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {

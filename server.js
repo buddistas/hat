@@ -39,12 +39,9 @@ let gameState = {
   selectedWords: [],
   availableWords: [],
   passedWords: [], // Список пропущенных слов для статистики
-  timer: null,
   isPaused: false,
   scores: {},
-  timeLeft: 60,
   roundDuration: 60,
-  roundStartTime: null,
   // Очередность ходов (формируется один раз при старте игры)
   turnOrder: {
     teams: [], // Порядок команд
@@ -101,13 +98,11 @@ function handleGameEvent(ws, event) {
       break;
       
     case 'word_guessed':
-      updateTimeFromClient(event.data.timeLeft);
       wordGuessed(event.data);
       broadcastGameState();
       break;
       
     case 'word_passed':
-      updateTimeFromClient(event.data.timeLeft);
       wordPassed(event.data);
       broadcastGameState();
       break;
@@ -134,6 +129,7 @@ function handleGameEvent(ws, event) {
       
     case 'time_up':
       endPlayerTurn();
+      broadcastGameState();
       break;
       
     case 'start_next_turn':
@@ -153,9 +149,7 @@ function startGame(data) {
   gameState.usedWords = [];
   gameState.passedWords = []; // Инициализация списка пропущенных слов
   gameState.scores = {};
-  gameState.timeLeft = data.roundDuration || 60;
   gameState.roundDuration = data.roundDuration || 60;
-  gameState.roundStartTime = Date.now();
   gameState.isHandoffScreen = false;
   gameState.nextPlayer = null;
   
@@ -352,12 +346,6 @@ function endPlayerTurn() {
   showHandoffScreen();
 }
 
-// Функция для обновления времени на основе клиентского времени
-function updateTimeFromClient(clientTimeLeft) {
-  if (clientTimeLeft !== undefined && clientTimeLeft >= 0) {
-    gameState.timeLeft = clientTimeLeft;
-  }
-}
 
 // Функция для показа экрана передачи хода
 function showHandoffScreen() {
@@ -390,9 +378,7 @@ function startNextPlayerTurn() {
   gameState.nextPlayer = null;
   gameState.isHandoffScreen = false;
   
-  // Сбрасываем таймер для нового хода
-  gameState.timeLeft = gameState.roundDuration;
-  gameState.roundStartTime = Date.now();
+  // Сбрасываем состояние для нового хода
   
   // Перемешиваем слова при смене игрока
   shuffleAvailableWords();
@@ -411,20 +397,16 @@ function startNextPlayerTurn() {
 
 function pauseGame() {
   gameState.isPaused = true;
-  if (gameState.timer) {
-    clearTimeout(gameState.timer);
-  }
 }
 
 function resumeGame() {
   gameState.isPaused = false;
-  // Здесь можно добавить логику возобновления таймера
 }
 
 function endRound() {
   // Показываем результаты раунда
   showRoundResults();
-  console.log(`Раунд ${gameState.currentRound + 1} завершен. Осталось времени: ${gameState.timeLeft} сек`);
+  console.log(`Раунд ${gameState.currentRound + 1} завершен`);
 }
 
 function startNextRound() {
@@ -444,9 +426,7 @@ function startNextRound() {
     // Перемешиваем слова для нового раунда
     shuffleAvailableWords();
     
-    // Сброс времени для нового раунда (используем исходное время раунда)
-    gameState.timeLeft = gameState.roundDuration;
-    gameState.roundStartTime = Date.now();
+    // Сброс состояния для нового раунда
     
     // Выбираем первое слово нового раунда
     nextWord();
@@ -461,8 +441,7 @@ function showRoundResults() {
     type: 'round_completed',
     data: {
       currentRound: gameState.currentRound,
-      scores: gameState.scores,
-      timeLeft: gameState.timeLeft
+      scores: gameState.scores
     }
   });
   
