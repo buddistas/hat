@@ -110,7 +110,7 @@ let gameState = {
   // Состояние передачи хода
   isHandoffScreen: false,
   nextPlayer: null,
-  // Перенесенное время для каждого игрока
+  // Перенесенное время (общее для текущего игрока, очищается при завершении игры)
   playerCarriedTime: {},
   // Статистика по раундам для команд
   teamStatsByRound: {
@@ -208,7 +208,7 @@ function handleGameEvent(ws, event) {
       break;
       
     case 'round_completed_carried_time':
-      // Сохраняем перенесенное время для текущего игрока
+      // Сохраняем перенесенное время для текущего игрока (упрощенная логика)
       if (gameState.currentPlayer && event.data.carriedTime !== undefined) {
         gameState.playerCarriedTime[gameState.currentPlayer.id] = event.data.carriedTime;
         console.log(`Сохранено перенесенное время ${event.data.carriedTime}с для игрока ${gameState.currentPlayer.name} после завершения раунда`);
@@ -218,7 +218,7 @@ function handleGameEvent(ws, event) {
     case 'carried_time_used':
       // Сбрасываем перенесенное время для текущего игрока после использования
       if (gameState.currentPlayer && gameState.playerCarriedTime[gameState.currentPlayer.id]) {
-        console.log(`Сброшено перенесенное время ${event.data.carriedTime}с для игрока ${gameState.currentPlayer.name} после использования`);
+        console.log(`Сброшено перенесенное время для игрока ${gameState.currentPlayer.name} после использования`);
         delete gameState.playerCarriedTime[gameState.currentPlayer.id];
       }
       break;
@@ -239,6 +239,10 @@ function startGame(data) {
   gameState.roundDuration = data.roundDuration || 30;
   gameState.isHandoffScreen = false;
   gameState.nextPlayer = null;
+  
+  // Очищаем перенесенное время при начале новой игры
+  gameState.playerCarriedTime = {};
+  console.log('Перенесенное время очищено при начале новой игры');
   
   // Инициализация статистики по раундам
   gameState.teamStatsByRound = { 0: {}, 1: {}, 2: {} };
@@ -480,6 +484,7 @@ function endPlayerTurn(data = {}) {
   console.log(`Ход игрока ${gameState.currentPlayer ? gameState.currentPlayer.name : 'неизвестного'} завершен`);
   
   // Сохраняем перенесенное время для текущего игрока, если оно передано
+  // Время очищается при завершении игры или начале новой игры
   if (gameState.currentPlayer && data.carriedTime !== undefined) {
     gameState.playerCarriedTime[gameState.currentPlayer.id] = data.carriedTime;
     console.log(`Сохранено перенесенное время ${data.carriedTime}с для игрока ${gameState.currentPlayer.name}`);
@@ -551,6 +556,7 @@ function resumeGame() {
 
 function endRound(data = {}) {
   // Сохраняем перенесенное время для текущего игрока, если оно передано
+  // Время очищается при завершении игры или начале новой игры
   if (gameState.currentPlayer && data.carriedTime !== undefined) {
     gameState.playerCarriedTime[gameState.currentPlayer.id] = data.carriedTime;
     console.log(`Сохранено перенесенное время ${data.carriedTime}с для игрока ${gameState.currentPlayer.name} при завершении раунда`);
@@ -572,6 +578,10 @@ function startNextRound() {
     console.log('Игра завершена');
     console.log('Финальные счета команд:', gameState.scores);
     console.log('Финальная статистика по раундам:', gameState.teamStatsByRound);
+    
+    // Очищаем перенесенное время при завершении игры
+    gameState.playerCarriedTime = {};
+    console.log('Перенесенное время очищено при завершении игры');
     
     // Отправляем событие завершения игры всем клиентам
     const message = JSON.stringify({
