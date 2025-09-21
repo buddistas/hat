@@ -167,7 +167,10 @@ function handleGameEvent(ws, event) {
       
     case 'word_guessed':
       wordGuessed(event.data);
-      broadcastGameState();
+      // Проверяем, не завершился ли раунд после угадывания последнего слова
+      if (gameState.currentWord !== null) {
+        broadcastGameState();
+      }
       break;
       
     case 'word_passed':
@@ -346,11 +349,13 @@ function nextWord() {
 
 function wordGuessed(data) {
   if (gameState.currentWord && data.teamId) {
-    gameState.scores[data.teamId] = (gameState.scores[data.teamId] || 0) + 1;
+    const oldScore = gameState.scores[data.teamId] || 0;
+    const oldRoundScore = gameState.teamStatsByRound[gameState.currentRound][data.teamId] || 0;
+    
+    gameState.scores[data.teamId] = oldScore + 1;
     
     // Обновляем статистику по раундам для команды
-    gameState.teamStatsByRound[gameState.currentRound][data.teamId] = 
-      (gameState.teamStatsByRound[gameState.currentRound][data.teamId] || 0) + 1;
+    gameState.teamStatsByRound[gameState.currentRound][data.teamId] = oldRoundScore + 1;
     
     // Обновляем личную статистику игрока
     if (gameState.currentPlayer) {
@@ -368,9 +373,23 @@ function wordGuessed(data) {
     // Добавляем в список использованных слов для статистики
     gameState.usedWords.push(guessedWord);
     
-    console.log(`Слово "${guessedWord}" угадано и удалено из пула. Осталось слов: ${gameState.availableWords.length}`);
+    console.log(`Слово "${guessedWord}" угадано командой ${data.teamId}. Осталось слов: ${gameState.availableWords.length}`);
+    console.log(`Баллы команды ${data.teamId}: общий ${oldScore} -> ${gameState.scores[data.teamId]}, раунд ${gameState.currentRound}: ${oldRoundScore} -> ${gameState.teamStatsByRound[gameState.currentRound][data.teamId]}`);
     
-    nextWord();
+    // Проверяем, не закончились ли слова после удаления угаданного слова
+    if (gameState.availableWords.length === 0) {
+      console.log('Слова закончились после угадывания последнего слова, завершаем раунд');
+      
+      // Отправляем обновленное состояние с финальным счетом перед завершением раунда
+      broadcastGameState();
+      
+      // Устанавливаем currentWord = null только после отправки состояния
+      gameState.currentWord = null;
+      
+      endRound();
+    } else {
+      nextWord();
+    }
     // Игрок продолжает свой ход до истечения таймера
   }
 }
@@ -551,12 +570,16 @@ function startNextRound() {
     // Игра завершена
     gameState.currentWord = null;
     console.log('Игра завершена');
+    console.log('Финальные счета команд:', gameState.scores);
+    console.log('Финальная статистика по раундам:', gameState.teamStatsByRound);
     
     // Отправляем событие завершения игры всем клиентам
     const message = JSON.stringify({
       type: 'game_ended',
       data: gameState
     });
+    
+    console.log('Отправляем game_ended с данными:', JSON.stringify(gameState, null, 2));
     
     wss.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
@@ -591,6 +614,9 @@ function startNextRound() {
 function showRoundResults() {
   // Отправляем событие для показа результатов раунда
   // Отправляем currentRound + 1, так как раунд только что завершился
+  console.log(`Завершение раунда ${gameState.currentRound + 1}. Текущие счета команд:`, gameState.scores);
+  console.log(`Статистика по раундам:`, gameState.teamStatsByRound);
+  
   const message = JSON.stringify({
     type: 'round_completed',
     data: {

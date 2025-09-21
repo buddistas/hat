@@ -342,9 +342,13 @@
 
         /* Стили для таблиц статистики */
         .stats-table-container {
-            margin: 20px 0;
+            margin: 20px auto;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            max-width: 700px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
         }
 
         .stats-table {
@@ -352,6 +356,7 @@
             border-collapse: collapse;
             background: white;
             font-size: 0.9em;
+            margin: 0 auto;
         }
 
         .stats-table th {
@@ -374,10 +379,6 @@
             color: #333;
         }
 
-        /* Черный цвет для названий команд в таблице игроков */
-        .stats-table td:nth-child(2) {
-            color: #333;
-        }
 
         .stats-table tbody tr:hover {
             background: #f9f9f9;
@@ -1234,9 +1235,6 @@
                         <thead>
                             <tr>
                                 <th>Игрок</th>
-                                <th>Команда</th>
-                                <th>Угадано</th>
-                                <th>Пропущено</th>
                                 <th>Очки</th>
                             </tr>
                         </thead>
@@ -1346,6 +1344,8 @@
                     }
                 } else if (message.type === 'game_ended') {
                     console.log('Получено событие game_ended:', message.data);
+                    console.log('Счета команд в game_ended:', message.data.scores);
+                    console.log('Статистика по раундам в game_ended:', message.data.teamStatsByRound);
                     gameState = message.data;
                     showResults();
                 } else if (message.type === 'handoff_screen') {
@@ -1715,23 +1715,31 @@
         function determineWinner() {
             const winner = document.getElementById('winner');
             
-            if (gameState.teams && gameState.scores) {
+            if (gameState.teams && gameState.teamStatsByRound) {
                 let maxScore = -Infinity;
                 let winnerTeam = null;
                 let teamsWithMaxScore = [];
                 
-                // Находим максимальный счет
+                // Находим максимальный счет (сумма по всем раундам)
                 gameState.teams.forEach(team => {
-                    const score = gameState.scores[team.id] || 0;
-                    if (score > maxScore) {
-                        maxScore = score;
+                    const round1Score = gameState.teamStatsByRound[0][team.id] || 0;
+                    const round2Score = gameState.teamStatsByRound[1][team.id] || 0;
+                    const round3Score = gameState.teamStatsByRound[2][team.id] || 0;
+                    const totalScore = round1Score + round2Score + round3Score;
+                    
+                    if (totalScore > maxScore) {
+                        maxScore = totalScore;
                     }
                 });
                 
                 // Находим все команды с максимальным счетом
                 gameState.teams.forEach(team => {
-                    const score = gameState.scores[team.id] || 0;
-                    if (score === maxScore) {
+                    const round1Score = gameState.teamStatsByRound[0][team.id] || 0;
+                    const round2Score = gameState.teamStatsByRound[1][team.id] || 0;
+                    const round3Score = gameState.teamStatsByRound[2][team.id] || 0;
+                    const totalScore = round1Score + round2Score + round3Score;
+                    
+                    if (totalScore === maxScore) {
                         teamsWithMaxScore.push(team);
                     }
                 });
@@ -1759,6 +1767,9 @@
             const teamStatsBody = document.getElementById('teamStatsBody');
             teamStatsBody.innerHTML = '';
             
+            console.log('showTeamStats - gameState.scores:', gameState.scores);
+            console.log('showTeamStats - gameState.teamStatsByRound:', gameState.teamStatsByRound);
+            
             if (gameState.teams && gameState.teamStatsByRound) {
                 gameState.teams.forEach(team => {
                     const row = document.createElement('tr');
@@ -1766,7 +1777,10 @@
                     const round1Score = gameState.teamStatsByRound[0][team.id] || 0;
                     const round2Score = gameState.teamStatsByRound[1][team.id] || 0;
                     const round3Score = gameState.teamStatsByRound[2][team.id] || 0;
-                    const totalScore = gameState.scores[team.id] || 0;
+                    const totalScore = round1Score + round2Score + round3Score;
+                    const serverTotalScore = gameState.scores[team.id] || 0;
+                    
+                    console.log(`Команда ${team.name}: раунд1=${round1Score}, раунд2=${round2Score}, раунд3=${round3Score}, сумма=${totalScore}, сервер=${serverTotalScore}`);
                     
                     row.innerHTML = `
                         <td><strong>${team.name || 'Команда'}</strong></td>
@@ -1815,9 +1829,6 @@
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td><strong>${player.name || 'Игрок'}</strong></td>
-                        <td>${teamName}</td>
-                        <td class="score-positive">${stats.guessed}</td>
-                        <td class="score-negative">${stats.passed}</td>
                         <td class="${getScoreClass(stats.totalScore)}"><strong>${stats.totalScore}</strong></td>
                     `;
                     
