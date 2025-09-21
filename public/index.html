@@ -601,7 +601,10 @@
             duration: 60000, // 60 секунд в миллисекундах
             remainingTime: 60000,
             animationFrameId: null,
-            carriedTime: 0 // Перенесенное время между раундами
+            carriedTime: 0, // Перенесенное время между раундами
+            roundStartTime: null, // Время начала раунда для корректного вычисления перенесенного времени
+            pausedDuration: 0, // Общее время пауз в раунде
+            pauseStartTime: null // Время начала текущей паузы
         };
 
         // Подключение к WebSocket
@@ -643,14 +646,12 @@
                     gameState.currentRound = message.data.currentRound;
                     gameState.scores = message.data.scores;
                     
-                    // Вычисляем перенесенное время
-                    const carriedTime = Math.ceil(timerState.remainingTime / 1000);
-                    timerState.carriedTime = carriedTime;
-                    
-                    // Отправляем информацию о перенесенном времени на сервер
-                    if (carriedTime > 0) {
-                        sendEvent('round_completed_carried_time', { carriedTime: carriedTime });
+                    // Если таймер еще работает, значит раунд завершился по исчерпанию слов
+                    // В этом случае нужно правильно вычислить перенесенное время
+                    if (timerState.isRunning) {
+                        endRoundByWordsExhausted();
                     }
+                    // Если таймер уже остановлен, перенесенное время уже вычислено
                     
                     showRoundScores();
                     showScreen('roundScoresScreen');
@@ -789,6 +790,9 @@
         function startGame() {
             const wordsCount = parseInt(document.getElementById('wordsCount').value);
             gameSetup.wordsCount = wordsCount;
+            
+            // Очищаем перенесенное время при начале новой игры
+            clearCarriedTime();
             
             sendEvent('start_game', {
                 players: gameSetup.players,
@@ -1016,28 +1020,95 @@
             document.getElementById(screenId).classList.add('active');
         }
 
+        // Функции для работы с переносом времени в localStorage
+        function saveCarriedTime(timeLeft) {
+            if (timeLeft > 0) {
+                localStorage.setItem('hatGame_carriedTime', timeLeft.toString());
+                console.log('Сохранено перенесенное время:', timeLeft, 'секунд');
+            } else {
+                localStorage.removeItem('hatGame_carriedTime');
+                console.log('Перенесенное время очищено');
+            }
+        }
+
+        function loadCarriedTime() {
+            const saved = localStorage.getItem('hatGame_carriedTime');
+            const carriedTime = saved ? parseFloat(saved) : 0;
+            console.log('Загружено перенесенное время:', carriedTime, 'секунд');
+            return carriedTime;
+        }
+
+        function clearCarriedTime() {
+            localStorage.removeItem('hatGame_carriedTime');
+            console.log('Перенесенное время очищено');
+        }
+
+        // Функция для корректного вычисления перенесенного времени
+        function calculateCarriedTime() {
+            // Используем уже вычисленное оставшееся время из таймера
+            // timerState.remainingTime уже учитывает паузы и корректно вычислено
+            const carriedTime = Math.max(0, timerState.remainingTime);
+            
+            console.log('calculateCarriedTime:', {
+                remainingTime: Math.round(timerState.remainingTime / 1000) + 's',
+                duration: Math.round(timerState.duration / 1000) + 's',
+                carriedTime: Math.round(carriedTime / 1000) + 's',
+                isRunning: timerState.isRunning,
+                isPaused: timerState.isPaused
+            });
+
+            return Math.ceil(carriedTime / 1000); // Возвращаем в секундах
+        }
+
+        // Функция для завершения раунда по исчерпанию слов
+        function endRoundByWordsExhausted() {
+            console.log('Раунд завершен по исчерпанию слов');
+            
+            // Останавливаем таймер
+            stopTimer();
+            
+            // Вычисляем перенесенное время на основе оставшегося времени
+            const carriedTime = calculateCarriedTime();
+            
+            // Сохраняем перенесенное время в localStorage
+            saveCarriedTime(carriedTime);
+            
+            // Отправляем информацию о перенесенном времени на сервер
+            if (carriedTime > 0) {
+                sendEvent('round_completed_carried_time', { carriedTime: carriedTime });
+            }
+            
+            console.log('Перенесенное время при завершении раунда:', carriedTime, 'секунд');
+        }
+
         // Новые функции для работы с таймером
         function startTimer(durationSeconds, carriedTimeSeconds = 0) {
             stopTimer();
             
             console.log('startTimer вызван с параметрами:', { durationSeconds, carriedTimeSeconds });
             
+            // Загружаем перенесенное время из localStorage, если не передано явно
+            const loadedCarriedTime = carriedTimeSeconds > 0 ? carriedTimeSeconds : loadCarriedTime();
+            
             // Если есть перенесенное время, используем только его, иначе стандартное время
-            const actualDuration = carriedTimeSeconds > 0 ? carriedTimeSeconds : durationSeconds;
+            const actualDuration = loadedCarriedTime > 0 ? loadedCarriedTime : durationSeconds;
             const totalDuration = actualDuration * 1000;
             
-            console.log('startTimer - actualDuration:', actualDuration, 'totalDuration:', totalDuration);
+            console.log('startTimer - loadedCarriedTime:', loadedCarriedTime, 'actualDuration:', actualDuration, 'totalDuration:', totalDuration);
             
             timerState.duration = totalDuration;
             timerState.remainingTime = totalDuration;
             timerState.startTime = performance.now();
+            timerState.roundStartTime = performance.now(); // Фиксируем время начала раунда
+            timerState.pausedDuration = 0; // Сбрасываем время пауз
             timerState.isRunning = true;
             timerState.isPaused = false;
             timerState.carriedTime = 0; // Сбрасываем перенесенное время после использования
             
-            // Если использовали перенесенное время, отправляем событие на сервер для сброса
-            if (carriedTimeSeconds > 0) {
-                sendEvent('carried_time_used', { carriedTime: carriedTimeSeconds });
+            // Если использовали перенесенное время, очищаем его из localStorage
+            if (loadedCarriedTime > 0) {
+                clearCarriedTime();
+                console.log('Использовано перенесенное время:', loadedCarriedTime, 'секунд');
             }
             
             updateTimerDisplay();
@@ -1056,6 +1127,7 @@
         function pauseTimer() {
             if (timerState.isRunning && !timerState.isPaused) {
                 timerState.isPaused = true;
+                timerState.pauseStartTime = performance.now(); // Фиксируем время начала паузы
                 if (timerState.animationFrameId) {
                     cancelAnimationFrame(timerState.animationFrameId);
                     timerState.animationFrameId = null;
@@ -1066,6 +1138,11 @@
         function resumeTimer() {
             if (timerState.isRunning && timerState.isPaused) {
                 timerState.isPaused = false;
+                // Добавляем время паузы к общему времени пауз
+                if (timerState.pauseStartTime) {
+                    timerState.pausedDuration += performance.now() - timerState.pauseStartTime;
+                    timerState.pauseStartTime = null;
+                }
                 // Корректируем время начала с учетом паузы
                 timerState.startTime = performance.now() - (timerState.duration - timerState.remainingTime);
                 timerLoop();
@@ -1081,7 +1158,10 @@
                 duration: 60000,
                 remainingTime: 60000,
                 animationFrameId: null,
-                carriedTime: 0
+                carriedTime: 0,
+                roundStartTime: null,
+                pausedDuration: 0,
+                pauseStartTime: null
             };
         }
 
@@ -1099,9 +1179,13 @@
             if (timerState.remainingTime <= 0) {
                 // Время истекло
                 timerState.isRunning = false;
-                // Вычисляем перенесенное время (в данном случае 0, так как время истекло)
-                const carriedTime = Math.ceil(timerState.remainingTime / 1000);
-                sendEvent('time_up', { carriedTime: Math.max(0, carriedTime) });
+                // При истечении времени перенесенное время = 0
+                const carriedTime = 0;
+                
+                // Сохраняем перенесенное время в localStorage (клиентская логика)
+                saveCarriedTime(carriedTime);
+                
+                sendEvent('time_up', { carriedTime: carriedTime });
             } else {
                 timerState.animationFrameId = requestAnimationFrame(timerLoop);
             }
@@ -1145,7 +1229,7 @@
             // Возвращаемся к экрану игры
             showScreen('gameScreen');
             
-            // Запускаем таймер для нового хода
+            // Запускаем таймер для нового хода (с автоматической загрузкой перенесенного времени)
             startTimer(gameSetup.roundDuration);
         }
 
