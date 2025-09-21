@@ -1417,7 +1417,16 @@
             // Обновление информации об игроке
             const playerInfo = document.getElementById('playerInfo');
             if (gameState.currentPlayer) {
-                playerInfo.textContent = `Ход: ${gameState.currentPlayer.name}`;
+                // Находим команду игрока
+                const playerTeam = gameState.teams.find(team => 
+                    team.players && team.players.includes(gameState.currentPlayer.id)
+                );
+                
+                if (playerTeam) {
+                    playerInfo.textContent = `Ход: ${gameState.currentPlayer.name} (${playerTeam.name})`;
+                } else {
+                    playerInfo.textContent = `Ход: ${gameState.currentPlayer.name}`;
+                }
             }
             
             // Обновление количества оставшихся слов
