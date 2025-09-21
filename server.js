@@ -498,7 +498,9 @@ function endRound(data = {}) {
 }
 
 function startNextRound() {
+  const oldRound = gameState.currentRound;
   gameState.currentRound++;
+  console.log(`ОБНОВЛЕНИЕ РАУНДА: ${oldRound} -> ${gameState.currentRound}`);
   
   if (gameState.currentRound > 3) {
     // Игра завершена
@@ -528,10 +530,11 @@ function startNextRound() {
 
 function showRoundResults() {
   // Отправляем событие для показа результатов раунда
+  // Отправляем currentRound + 1, так как раунд только что завершился
   const message = JSON.stringify({
     type: 'round_completed',
     data: {
-      currentRound: gameState.currentRound,
+      currentRound: gameState.currentRound + 1,
       scores: gameState.scores
     }
   });
@@ -560,6 +563,7 @@ function broadcastGameState() {
   
   // Отладочная информация
   console.log('Отправляем game_state с playerCarriedTime:', gameState.playerCarriedTime);
+  console.log('Отправляем currentRound:', gameState.currentRound);
   
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {

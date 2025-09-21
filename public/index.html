@@ -766,7 +766,7 @@
                 <button class="btn btn-danger btn-small" onclick="endGame()">Завершить игру</button>
             </div>
             
-            <div class="round-info" id="roundInfo">Раунд 1 из 3</div>
+            <div class="round-info" id="roundInfo" style="font-weight: bold; font-size: 1.2em; color: #2196F3;">Текущий раунд: 1 из 3</div>
             <div class="player-info" id="playerInfo">Ход игрока</div>
             
             <div class="game-area">
@@ -1002,7 +1002,8 @@
                     }
                 } else if (message.type === 'round_completed') {
                     console.log('Получено событие round_completed:', message.data);
-                    gameState.currentRound = message.data.currentRound;
+                    // НЕ обновляем currentRound здесь - правильное значение придет в следующем game_state
+                    // message.data.currentRound содержит номер завершенного раунда (1, 2, 3)
                     gameState.scores = message.data.scores;
                     
                     // Если таймер еще работает, значит раунд завершился по исчерпанию слов
@@ -1013,21 +1014,20 @@
                     // Если таймер уже остановлен, перенесенное время уже вычислено
                     
                     // Определяем, какой экран показать после завершения раунда
-                    const nextRound = gameState.currentRound + 1;
-                    if (nextRound === 2) {
-                        // Показываем экран правил 2-го раунда
-                        showScreen('rulesScreen2');
-                    } else if (nextRound === 3) {
-                        // Показываем экран правил 3-го раунда
-                        showScreen('rulesScreen3');
-                    } else if (nextRound > 3) {
-                        // Игра завершена, показываем результаты
-                        showResults();
-                        showScreen('resultsScreen');
-                    } else {
-                        // Показываем результаты раунда (для первого раунда)
+                    // message.data.currentRound содержит номер завершенного раунда (1, 2, 3)
+                    const completedRound = message.data.currentRound;
+                    
+                    if (completedRound === 1) {
+                        // Завершился первый раунд - показываем результаты раунда
                         showRoundScores();
                         showScreen('roundScoresScreen');
+                    } else if (completedRound === 2) {
+                        // Завершился второй раунд - показываем экран правил 3-го раунда
+                        showScreen('rulesScreen3');
+                    } else if (completedRound === 3) {
+                        // Завершился третий раунд - игра окончена, показываем результаты
+                        showResults();
+                        showScreen('resultsScreen');
                     }
                 } else if (message.type === 'handoff_screen') {
                     console.log('Получено событие handoff_screen:', message.data);
@@ -1265,7 +1265,8 @@
             // Обновление информации о раунде
             const roundInfo = document.getElementById('roundInfo');
             if (gameState.currentRound !== undefined) {
-                roundInfo.textContent = `Раунд ${gameState.currentRound + 1} из 3`;
+                console.log('Обновление отображения раунда:', gameState.currentRound, 'отображается как:', gameState.currentRound + 1);
+                roundInfo.textContent = `Текущий раунд: ${gameState.currentRound + 1} из 3`;
             }
             
             // Обновление информации об игроке
