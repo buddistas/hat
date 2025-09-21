@@ -9,12 +9,70 @@ const PORT = process.env.PORT || 4000;
 // Раздача статических файлов
 app.use(express.static('public'));
 
+// Функция нормализации слова согласно плану проекта
+function normalizeWord(word) {
+  return word
+    .toLowerCase()
+    .trim()
+    .replace(/ё/g, 'е')
+    .replace(/[.,!?:;"'()\-–—]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Функция проверки дубликатов в словаре
+function checkForDuplicates(wordList) {
+  const duplicates = [];
+  const seen = new Set();
+  const normalizedSeen = new Set();
+  
+  wordList.forEach((word, index) => {
+    const normalized = normalizeWord(word);
+    
+    // Проверка точных дубликатов
+    if (seen.has(word)) {
+      duplicates.push({
+        type: 'exact',
+        word: word,
+        index: index,
+        message: `Точный дубликат слова "${word}"`
+      });
+    }
+    
+    // Проверка нормализованных дубликатов
+    if (normalizedSeen.has(normalized)) {
+      duplicates.push({
+        type: 'normalized',
+        word: word,
+        normalized: normalized,
+        index: index,
+        message: `Нормализованный дубликат: "${word}" → "${normalized}"`
+      });
+    }
+    
+    seen.add(word);
+    normalizedSeen.add(normalized);
+  });
+  
+  return duplicates;
+}
+
 // Загрузка словаря
 let words = [];
 try {
   const wordsData = fs.readFileSync(path.join(__dirname, 'public', 'words.csv'), 'utf8');
   words = wordsData.split(',').map(word => word.trim()).filter(word => word.length > 0);
-  console.log(`Загружено ${words.length} слов из словаря`);
+  
+  // Проверка на дубликаты при загрузке
+  const duplicates = checkForDuplicates(words);
+  if (duplicates.length > 0) {
+    console.warn(`⚠️  Найдены дубликаты в словаре (${duplicates.length}):`);
+    duplicates.forEach(dup => {
+      console.warn(`   ${dup.message}`);
+    });
+  } else {
+    console.log(`✅ Словарь загружен без дубликатов: ${words.length} уникальных слов`);
+  }
 } catch (error) {
   console.error('Ошибка загрузки словаря:', error.message);
   words = ['тест', 'слово', 'игра', 'шляпа']; // Fallback слова
@@ -513,8 +571,28 @@ function broadcastGameState() {
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('Завершение работы сервера...');
+  
+  // Закрываем все WebSocket соединения
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.close();
+    }
+  });
+  
+  // Закрываем WebSocket сервер
+  wss.close(() => {
+    console.log('WebSocket сервер закрыт');
+  });
+  
+  // Закрываем HTTP сервер
   server.close(() => {
-    console.log('Сервер остановлен');
+    console.log('HTTP сервер остановлен');
     process.exit(0);
   });
+  
+  // Принудительное завершение через 5 секунд, если сервер не закрылся
+  setTimeout(() => {
+    console.log('Принудительное завершение работы...');
+    process.exit(1);
+  }, 5000);
 });
