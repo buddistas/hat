@@ -321,6 +321,130 @@
             font-weight: bold;
         }
 
+        /* Стили для навигации между экранами статистики */
+        .stats-navigation {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            justify-content: center;
+        }
+
+        .stats-navigation .btn {
+            padding: 10px 20px;
+            font-size: 0.9em;
+            min-width: 100px;
+        }
+
+        .stats-navigation .btn-active {
+            background: #4CAF50;
+            color: white;
+        }
+
+        /* Стили для таблиц статистики */
+        .stats-table-container {
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            font-size: 0.9em;
+        }
+
+        .stats-table th {
+            background: #f5f5f5;
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: bold;
+            border-bottom: 2px solid #ddd;
+            color: #333;
+        }
+
+        .stats-table td {
+            padding: 10px 8px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        /* Черный цвет только для имен и названий команд */
+        .stats-table td:first-child {
+            color: #333;
+        }
+
+        /* Черный цвет для названий команд в таблице игроков */
+        .stats-table td:nth-child(2) {
+            color: #333;
+        }
+
+        .stats-table tbody tr:hover {
+            background: #f9f9f9;
+        }
+
+        .stats-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Стили для очков */
+        .score-positive {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .score-negative {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        .score-zero {
+            color: #666;
+        }
+
+        /* Адаптивность для мобильных устройств */
+        @media (max-width: 768px) {
+            .stats-table {
+                font-size: 0.75em;
+            }
+            
+            .stats-table th,
+            .stats-table td {
+                padding: 6px 3px;
+            }
+            
+            .stats-navigation {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .stats-navigation .btn {
+                width: 200px;
+            }
+            
+            /* Делаем таблицы более компактными на мобильных */
+            .stats-table th:nth-child(1),
+            .stats-table td:nth-child(1) {
+                min-width: 80px;
+            }
+            
+            .stats-table th:nth-child(2),
+            .stats-table td:nth-child(2) {
+                min-width: 60px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .stats-table {
+                font-size: 0.7em;
+            }
+            
+            .stats-table th,
+            .stats-table td {
+                padding: 4px 2px;
+            }
+        }
+
         .team-item {
             background: rgba(255,255,255,0.1);
             border-radius: 10px;
@@ -1060,12 +1184,67 @@
             </div>
         </div>
 
-        <!-- Экран результатов -->
-        <div class="screen" id="resultsScreen">
+        <!-- Экран результатов команд -->
+        <div class="screen" id="teamResultsScreen">
             <div class="results">
-                <h2>Результаты игры</h2>
+                <h2>Результаты команд</h2>
                 <div class="winner" id="winner"></div>
-                <div class="scores" id="finalScores"></div>
+                
+                <!-- Навигация между экранами статистики -->
+                <div class="stats-navigation">
+                    <button class="btn btn-active" onclick="showTeamStats()">Команды</button>
+                    <button class="btn" onclick="showPlayerStats()">Игроки</button>
+                </div>
+                
+                <!-- Таблица результатов команд -->
+                <div class="stats-table-container">
+                    <table class="stats-table" id="teamStatsTable">
+                        <thead>
+                            <tr>
+                                <th>Команда</th>
+                                <th>Раунд 1</th>
+                                <th>Раунд 2</th>
+                                <th>Раунд 3</th>
+                                <th>Итого</th>
+                            </tr>
+                        </thead>
+                        <tbody id="teamStatsBody">
+                        </tbody>
+                    </table>
+                </div>
+                
+                <button class="btn" onclick="newGame()">Новая игра</button>
+            </div>
+        </div>
+
+        <!-- Экран результатов игроков -->
+        <div class="screen" id="playerResultsScreen">
+            <div class="results">
+                <h2>Личные результаты</h2>
+                
+                <!-- Навигация между экранами статистики -->
+                <div class="stats-navigation">
+                    <button class="btn" onclick="showTeamStats()">Команды</button>
+                    <button class="btn btn-active" onclick="showPlayerStats()">Игроки</button>
+                </div>
+                
+                <!-- Таблица результатов игроков -->
+                <div class="stats-table-container">
+                    <table class="stats-table" id="playerStatsTable">
+                        <thead>
+                            <tr>
+                                <th>Игрок</th>
+                                <th>Команда</th>
+                                <th>Угадано</th>
+                                <th>Пропущено</th>
+                                <th>Очки</th>
+                            </tr>
+                        </thead>
+                        <tbody id="playerStatsBody">
+                        </tbody>
+                    </table>
+                </div>
+                
                 <button class="btn" onclick="newGame()">Новая игра</button>
             </div>
         </div>
@@ -1164,8 +1343,11 @@
                     } else if (completedRound === 3) {
                         // Завершился третий раунд - игра окончена, показываем результаты
                         showResults();
-                        showScreen('resultsScreen');
                     }
+                } else if (message.type === 'game_ended') {
+                    console.log('Получено событие game_ended:', message.data);
+                    gameState = message.data;
+                    showResults();
                 } else if (message.type === 'handoff_screen') {
                     console.log('Получено событие handoff_screen:', message.data);
                     showHandoffScreen(message.data);
@@ -1512,7 +1694,6 @@
             if (nextRound > 3) {
                 // Игра завершена, показываем финальные результаты
                 showResults();
-                showScreen('resultsScreen');
             } else {
                 // Переходим к следующему раунду
                 sendEvent('continue_round');
@@ -1524,8 +1705,15 @@
         }
 
         function showResults() {
+            // Определяем победителя
+            determineWinner();
+            
+            // Показываем экран статистики команд по умолчанию
+            showTeamStats();
+        }
+
+        function determineWinner() {
             const winner = document.getElementById('winner');
-            const finalScores = document.getElementById('finalScores');
             
             if (gameState.teams && gameState.scores) {
                 let maxScore = -Infinity;
@@ -1557,19 +1745,94 @@
                     // Ничья
                     winner.textContent = `🤝 Ничья!`;
                 }
-                
-                // Показ финальных счетов
-                finalScores.innerHTML = '';
+            }
+        }
+
+        function showTeamStats() {
+            // Обновляем навигацию
+            document.querySelectorAll('.stats-navigation .btn').forEach(btn => {
+                btn.classList.remove('btn-active');
+            });
+            document.querySelectorAll('.stats-navigation .btn')[0].classList.add('btn-active');
+            
+            // Заполняем таблицу статистики команд
+            const teamStatsBody = document.getElementById('teamStatsBody');
+            teamStatsBody.innerHTML = '';
+            
+            if (gameState.teams && gameState.teamStatsByRound) {
                 gameState.teams.forEach(team => {
-                    const scoreDiv = document.createElement('div');
-                    scoreDiv.className = 'score-item';
-                    scoreDiv.innerHTML = `
-                        <h3>${team.name}</h3>
-                        <div class="score">${gameState.scores[team.id] || 0}</div>
+                    const row = document.createElement('tr');
+                    
+                    const round1Score = gameState.teamStatsByRound[0][team.id] || 0;
+                    const round2Score = gameState.teamStatsByRound[1][team.id] || 0;
+                    const round3Score = gameState.teamStatsByRound[2][team.id] || 0;
+                    const totalScore = gameState.scores[team.id] || 0;
+                    
+                    row.innerHTML = `
+                        <td><strong>${team.name || 'Команда'}</strong></td>
+                        <td class="${getScoreClass(round1Score)}">${round1Score}</td>
+                        <td class="${getScoreClass(round2Score)}">${round2Score}</td>
+                        <td class="${getScoreClass(round3Score)}">${round3Score}</td>
+                        <td class="${getScoreClass(totalScore)}"><strong>${totalScore}</strong></td>
                     `;
-                    finalScores.appendChild(scoreDiv);
+                    
+                    teamStatsBody.appendChild(row);
                 });
             }
+            
+            // Показываем экран статистики команд
+            showScreen('teamResultsScreen');
+        }
+
+        function showPlayerStats() {
+            // Обновляем навигацию
+            document.querySelectorAll('.stats-navigation .btn').forEach(btn => {
+                btn.classList.remove('btn-active');
+            });
+            document.querySelectorAll('.stats-navigation .btn')[1].classList.add('btn-active');
+            
+            // Заполняем таблицу статистики игроков
+            const playerStatsBody = document.getElementById('playerStatsBody');
+            playerStatsBody.innerHTML = '';
+            
+            if (gameState.players && gameState.playerStats) {
+                // Сортируем игроков по очкам (по убыванию)
+                const sortedPlayers = [...gameState.players].sort((a, b) => {
+                    const scoreA = gameState.playerStats[a.id]?.totalScore || 0;
+                    const scoreB = gameState.playerStats[b.id]?.totalScore || 0;
+                    return scoreB - scoreA;
+                });
+                
+                sortedPlayers.forEach(player => {
+                    const stats = gameState.playerStats[player.id] || { guessed: 0, passed: 0, totalScore: 0 };
+                    
+                    // Находим команду игрока
+                    const playerTeam = gameState.teams.find(team => 
+                        team.players && team.players.includes(player.id)
+                    );
+                    const teamName = playerTeam ? playerTeam.name : 'Неизвестно';
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><strong>${player.name || 'Игрок'}</strong></td>
+                        <td>${teamName}</td>
+                        <td class="score-positive">${stats.guessed}</td>
+                        <td class="score-negative">${stats.passed}</td>
+                        <td class="${getScoreClass(stats.totalScore)}"><strong>${stats.totalScore}</strong></td>
+                    `;
+                    
+                    playerStatsBody.appendChild(row);
+                });
+            }
+            
+            // Показываем экран статистики игроков
+            showScreen('playerResultsScreen');
+        }
+
+        function getScoreClass(score) {
+            if (score > 0) return 'score-positive';
+            if (score < 0) return 'score-negative';
+            return 'score-zero';
         }
 
         function showScreen(screenId) {

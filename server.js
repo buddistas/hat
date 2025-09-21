@@ -111,7 +111,15 @@ let gameState = {
   isHandoffScreen: false,
   nextPlayer: null,
   // Перенесенное время для каждого игрока
-  playerCarriedTime: {}
+  playerCarriedTime: {},
+  // Статистика по раундам для команд
+  teamStatsByRound: {
+    0: {}, // Раунд 1
+    1: {}, // Раунд 2  
+    2: {}  // Раунд 3
+  },
+  // Личная статистика игроков
+  playerStats: {}
 };
 
 // WebSocket обработчики
@@ -229,6 +237,10 @@ function startGame(data) {
   gameState.isHandoffScreen = false;
   gameState.nextPlayer = null;
   
+  // Инициализация статистики по раундам
+  gameState.teamStatsByRound = { 0: {}, 1: {}, 2: {} };
+  gameState.playerStats = {};
+  
   // Настройка количества слов
   const wordsCount = data.wordsCount || 100;
   gameState.selectedWords = selectRandomWords(wordsCount);
@@ -240,6 +252,19 @@ function startGame(data) {
   // Инициализация счетов команд
   gameState.teams.forEach(team => {
     gameState.scores[team.id] = 0;
+    // Инициализация статистики по раундам для каждой команды
+    gameState.teamStatsByRound[0][team.id] = 0;
+    gameState.teamStatsByRound[1][team.id] = 0;
+    gameState.teamStatsByRound[2][team.id] = 0;
+  });
+  
+  // Инициализация личной статистики игроков
+  gameState.players.forEach(player => {
+    gameState.playerStats[player.id] = {
+      guessed: 0,
+      passed: 0,
+      totalScore: 0
+    };
   });
   
   // Инициализация очереди ходов
@@ -323,6 +348,16 @@ function wordGuessed(data) {
   if (gameState.currentWord && data.teamId) {
     gameState.scores[data.teamId] = (gameState.scores[data.teamId] || 0) + 1;
     
+    // Обновляем статистику по раундам для команды
+    gameState.teamStatsByRound[gameState.currentRound][data.teamId] = 
+      (gameState.teamStatsByRound[gameState.currentRound][data.teamId] || 0) + 1;
+    
+    // Обновляем личную статистику игрока
+    if (gameState.currentPlayer) {
+      gameState.playerStats[gameState.currentPlayer.id].guessed += 1;
+      gameState.playerStats[gameState.currentPlayer.id].totalScore += 1;
+    }
+    
     // Удаляем угаданное слово из пула
     const guessedWord = gameState.currentWord;
     const wordIndex = gameState.availableWords.indexOf(guessedWord);
@@ -343,6 +378,16 @@ function wordGuessed(data) {
 function wordPassed(data) {
   if (gameState.currentWord && data.teamId) {
     gameState.scores[data.teamId] = (gameState.scores[data.teamId] || 0) - 1;
+    
+    // Обновляем статистику по раундам для команды
+    gameState.teamStatsByRound[gameState.currentRound][data.teamId] = 
+      (gameState.teamStatsByRound[gameState.currentRound][data.teamId] || 0) - 1;
+    
+    // Обновляем личную статистику игрока
+    if (gameState.currentPlayer) {
+      gameState.playerStats[gameState.currentPlayer.id].passed += 1;
+      gameState.playerStats[gameState.currentPlayer.id].totalScore -= 1;
+    }
     
     // Перемещаем пропущенное слово в конец очереди availableWords
     const currentWord = gameState.currentWord;
@@ -506,6 +551,18 @@ function startNextRound() {
     // Игра завершена
     gameState.currentWord = null;
     console.log('Игра завершена');
+    
+    // Отправляем событие завершения игры всем клиентам
+    const message = JSON.stringify({
+      type: 'game_ended',
+      data: gameState
+    });
+    
+    wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
   } else {
     // Сброс использованных слов для нового раунда
     gameState.usedWords = [];
@@ -516,7 +573,10 @@ function startNextRound() {
     // Перемешиваем слова для нового раунда
     shuffleAvailableWords();
     
-    // Сброс состояния для нового раунда
+    // Инициализация статистики по раундам для нового раунда
+    gameState.teams.forEach(team => {
+      gameState.teamStatsByRound[gameState.currentRound][team.id] = 0;
+    });
     
     // Выбираем первое слово нового раунда
     nextWord();
