@@ -121,15 +121,26 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: space-between;
             text-align: center;
+            min-height: 0; /* Позволяет flex-элементам сжиматься */
+        }
+
+        .game-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 0;
         }
 
         .current-word {
             font-size: 3rem;
             font-weight: bold;
-            margin: 30px 0;
-            padding: 30px;
+            margin: 20px 0;
+            padding: 20px;
             background: rgba(255,255,255,0.1);
             border-radius: 20px;
             backdrop-filter: blur(10px);
@@ -138,7 +149,12 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            word-break: break-word;
+            word-break: keep-all; /* Не разрываем слова по слогам */
+            white-space: normal; /* Разрешаем перенос строк */
+            overflow-wrap: break-word; /* Переносим только при необходимости */
+            width: 100%;
+            text-align: center;
+            line-height: 1.2; /* Улучшаем читаемость при переносе строк */
         }
 
         .timer {
@@ -159,7 +175,10 @@
         .game-controls {
             display: flex;
             gap: 15px;
-            margin-top: 30px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 350px;
+            flex-shrink: 0; /* Предотвращаем сжатие кнопок */
         }
 
         .game-controls .btn {
@@ -375,11 +394,14 @@
             
             .current-word {
                 font-size: 2rem;
-                padding: 20px;
+                padding: 15px;
+                word-break: keep-all; /* Не разрываем слова по слогам на мобильных */
+                line-height: 1.3; /* Немного больше межстрочный интервал на мобильных */
             }
             
             .game-controls {
                 flex-direction: column;
+                max-width: 100%;
             }
 
             .game-controls-top {
@@ -528,8 +550,10 @@
             <div class="player-info" id="playerInfo">Ход игрока</div>
             
             <div class="game-area">
-                <div class="timer" id="timer">60</div>
-                <div class="current-word" id="currentWord">Нажмите "Пропуск" для следующего слова</div>
+                <div class="game-content">
+                    <div class="timer" id="timer">60</div>
+                    <div class="current-word" id="currentWord">Нажмите "Пропуск" для следующего слова</div>
+                </div>
                 
                 <div class="game-controls">
                     <button class="btn btn-success" onclick="wordGuessed()">Верно</button>
