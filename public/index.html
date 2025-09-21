@@ -373,6 +373,18 @@
             border: 1px solid rgba(255,255,255,0.3);
         }
 
+        .player-intro-info {
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 40px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            text-align: center;
+            max-width: 400px;
+            margin: 0 auto;
+            animation: playerIntroSlideIn 0.8s ease-out;
+        }
+
         .handoff-info {
             background: rgba(255,255,255,0.1);
             border-radius: 20px;
@@ -382,6 +394,27 @@
             text-align: center;
             max-width: 400px;
             margin: 0 auto;
+        }
+
+        .current-player-info {
+            margin: 30px 0;
+            animation: playerInfoFadeIn 1s ease-out 0.3s both;
+        }
+
+        .current-player-name {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #ffeb3b;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            margin-bottom: 10px;
+            animation: playerNameGlow 2s ease-in-out infinite;
+        }
+
+        .current-player-team {
+            font-size: 1.3rem;
+            opacity: 0.9;
+            color: white;
+            animation: playerTeamSlideIn 0.8s ease-out 0.5s both;
         }
 
         .next-player-info {
@@ -579,6 +612,49 @@
             }
         }
 
+        /* Анимации для экрана представления игрока */
+        @keyframes playerIntroSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(50px) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @keyframes playerInfoFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes playerNameGlow {
+            0%, 100% {
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.5), 0 0 20px rgba(255,235,59,0.3);
+            }
+            50% {
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.5), 0 0 30px rgba(255,235,59,0.6);
+            }
+        }
+
+        @keyframes playerTeamSlideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+            to {
+                opacity: 0.9;
+                transform: translateX(0);
+            }
+        }
+
         @media (max-width: 480px) {
             .container {
                 padding: 15px;
@@ -663,6 +739,20 @@
             .rules-btn {
                 font-size: 1.1rem;
                 padding: 15px 30px;
+            }
+
+            /* Адаптация экрана представления игрока для мобильных */
+            .player-intro-info {
+                padding: 25px;
+                margin: 10px;
+            }
+
+            .current-player-name {
+                font-size: 2rem;
+            }
+
+            .current-player-team {
+                font-size: 1.1rem;
             }
         }
     </style>
@@ -798,6 +888,25 @@
                 <div class="game-controls">
                     <button class="btn btn-success" onclick="wordGuessed()">Верно</button>
                     <button class="btn btn-warning" onclick="wordPassed()">Пропуск</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Экран представления игрока -->
+        <div class="screen" id="playerIntroScreen">
+            <div class="game-area">
+                <div class="player-intro-info">
+                    <h2 style="text-align: center; margin-bottom: 30px; color: #ffeb3b;">Ход игрока</h2>
+                    <div class="current-player-info">
+                        <div class="current-player-name" id="currentPlayerName">Игрок</div>
+                        <div class="current-player-team" id="currentPlayerTeam">Команда</div>
+                    </div>
+                    <div class="player-intro-message">
+                        <p style="text-align: center; font-size: 1.2rem; margin: 30px 0; opacity: 0.9;">
+                            Готовы начать ход?
+                        </p>
+                    </div>
+                    <button class="btn" onclick="startPlayerTurn()" id="startPlayerTurnBtn">Начать</button>
                 </div>
             </div>
         </div>
@@ -1008,8 +1117,16 @@
                     console.log('Получен game_state с playerCarriedTime:', gameState.playerCarriedTime);
                     updateGameDisplay();
                     
-                    // Если мы на экране игры и таймер не запущен, запускаем его с учетом carriedTime
-                    if (document.getElementById('gameScreen').classList.contains('active') && !timerState.isRunning) {
+                    // Проверяем, нужно ли показать экран представления игрока
+                    const isOnRulesScreen = document.getElementById('rulesScreen2').classList.contains('active') || 
+                                          document.getElementById('rulesScreen3').classList.contains('active');
+                    const isOnRoundScoresScreen = document.getElementById('roundScoresScreen').classList.contains('active');
+                    
+                    if (isOnRulesScreen || isOnRoundScoresScreen) {
+                        // Показываем экран представления игрока для нового раунда
+                        showPlayerIntroScreen();
+                    } else if (document.getElementById('gameScreen').classList.contains('active') && !timerState.isRunning) {
+                        // Если мы на экране игры и таймер не запущен, запускаем его с учетом carriedTime
                         const currentPlayerCarriedTime = gameState.playerCarriedTime && gameState.currentPlayer 
                             ? (gameState.playerCarriedTime[gameState.currentPlayer.id] || 0)
                             : 0;
@@ -1211,24 +1328,22 @@
 
         // Функции для экранов правил
         function startFirstRound() {
-            showScreen('gameScreen');
-            startTimer(gameSetup.roundDuration);
+            // Показываем экран представления первого игрока
+            showPlayerIntroScreen();
         }
 
         function startSecondRound() {
             // Переходим к следующему раунду
             sendEvent('continue_round');
-            showScreen('gameScreen');
-            console.log('startSecondRound - ждем обновления game_state для запуска таймера');
-            // Таймер будет запущен после получения обновленного game_state
+            console.log('startSecondRound - ждем обновления game_state для показа экрана представления игрока');
+            // Экран представления игрока будет показан после получения обновленного game_state
         }
 
         function startThirdRound() {
             // Переходим к следующему раунду
             sendEvent('continue_round');
-            showScreen('gameScreen');
-            console.log('startThirdRound - ждем обновления game_state для запуска таймера');
-            // Таймер будет запущен после получения обновленного game_state
+            console.log('startThirdRound - ждем обновления game_state для показа экрана представления игрока');
+            // Экран представления игрока будет показан после получения обновленного game_state
         }
 
 
@@ -1631,6 +1746,32 @@
             document.getElementById('timer').textContent = seconds;
         }
 
+        function showPlayerIntroScreen() {
+            // Останавливаем таймер
+            stopTimer();
+            
+            // Обновляем информацию о текущем игроке
+            const currentPlayerName = document.getElementById('currentPlayerName');
+            const currentPlayerTeam = document.getElementById('currentPlayerTeam');
+            
+            if (gameState.currentPlayer) {
+                currentPlayerName.textContent = gameState.currentPlayer.name;
+                
+                // Находим команду игрока
+                const playerTeam = gameState.teams.find(team => 
+                    team.players && team.players.includes(gameState.currentPlayer.id)
+                );
+                if (playerTeam) {
+                    currentPlayerTeam.textContent = playerTeam.name;
+                } else {
+                    currentPlayerTeam.textContent = '';
+                }
+            }
+            
+            // Показываем экран представления игрока
+            showScreen('playerIntroScreen');
+        }
+
         function showHandoffScreen(data) {
             // Останавливаем таймер
             stopTimer();
@@ -1655,6 +1796,19 @@
             
             // Показываем экран передачи хода
             showScreen('handoffScreen');
+        }
+
+        function startPlayerTurn() {
+            // Переходим к экрану игры
+            showScreen('gameScreen');
+            
+            // Запускаем таймер для хода игрока (с автоматической загрузкой перенесенного времени)
+            const currentPlayerCarriedTime = gameState.playerCarriedTime && gameState.currentPlayer 
+                ? (gameState.playerCarriedTime[gameState.currentPlayer.id] || 0)
+                : 0;
+            
+            console.log('startPlayerTurn - currentPlayerCarriedTime:', currentPlayerCarriedTime);
+            startTimer(gameSetup.roundDuration, currentPlayerCarriedTime);
         }
 
         function startNextTurn() {
