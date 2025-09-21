@@ -1406,17 +1406,32 @@
             if (gameState.teams && gameState.scores) {
                 let maxScore = -Infinity;
                 let winnerTeam = null;
+                let teamsWithMaxScore = [];
                 
+                // Находим максимальный счет
                 gameState.teams.forEach(team => {
                     const score = gameState.scores[team.id] || 0;
                     if (score > maxScore) {
                         maxScore = score;
-                        winnerTeam = team;
                     }
                 });
                 
-                if (winnerTeam) {
+                // Находим все команды с максимальным счетом
+                gameState.teams.forEach(team => {
+                    const score = gameState.scores[team.id] || 0;
+                    if (score === maxScore) {
+                        teamsWithMaxScore.push(team);
+                    }
+                });
+                
+                // Определяем результат
+                if (teamsWithMaxScore.length === 1) {
+                    // Есть единственный победитель
+                    winnerTeam = teamsWithMaxScore[0];
                     winner.textContent = `🏆 Победила ${winnerTeam.name}!`;
+                } else {
+                    // Ничья
+                    winner.textContent = `🤝 Ничья!`;
                 }
                 
                 // Показ финальных счетов
