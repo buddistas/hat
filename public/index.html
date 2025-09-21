@@ -619,10 +619,25 @@
             ws.onmessage = function(event) {
                 const message = JSON.parse(event.data);
                 console.log('Получено сообщение:', message);
+                console.log('Тип сообщения:', message.type);
                 
                 if (message.type === 'game_state') {
                     gameState = message.data;
+                    console.log('Получен game_state с playerCarriedTime:', gameState.playerCarriedTime);
                     updateGameDisplay();
+                    
+                    // Если мы на экране игры и таймер не запущен, запускаем его с учетом carriedTime
+                    if (document.getElementById('gameScreen').classList.contains('active') && !timerState.isRunning) {
+                        const currentPlayerCarriedTime = gameState.playerCarriedTime && gameState.currentPlayer 
+                            ? (gameState.playerCarriedTime[gameState.currentPlayer.id] || 0)
+                            : 0;
+                        
+                        console.log('Запускаем таймер после получения game_state:');
+                        console.log('- currentPlayer:', gameState.currentPlayer);
+                        console.log('- currentPlayerCarriedTime:', currentPlayerCarriedTime);
+                        
+                        startTimer(gameSetup.roundDuration, currentPlayerCarriedTime);
+                    }
                 } else if (message.type === 'round_completed') {
                     console.log('Получено событие round_completed:', message.data);
                     gameState.currentRound = message.data.currentRound;
@@ -631,6 +646,11 @@
                     // Вычисляем перенесенное время
                     const carriedTime = Math.ceil(timerState.remainingTime / 1000);
                     timerState.carriedTime = carriedTime;
+                    
+                    // Отправляем информацию о перенесенном времени на сервер
+                    if (carriedTime > 0) {
+                        sendEvent('round_completed_carried_time', { carriedTime: carriedTime });
+                    }
                     
                     showRoundScores();
                     showScreen('roundScoresScreen');
@@ -899,14 +919,18 @@
                 });
             }
             
-            // Показываем перенесенное время
-            if (timerState.carriedTime > 0) {
+            // Показываем перенесенное время для текущего игрока
+            const currentPlayerCarriedTime = gameState.playerCarriedTime && gameState.currentPlayer 
+                ? (gameState.playerCarriedTime[gameState.currentPlayer.id] || 0)
+                : 0;
+            
+            if (currentPlayerCarriedTime > 0) {
                 const timeInfo = document.createElement('div');
                 timeInfo.className = 'score-item';
                 timeInfo.style.marginTop = '20px';
                 timeInfo.innerHTML = `
                     <h3>Перенесено времени</h3>
-                    <div class="score">${timerState.carriedTime} сек</div>
+                    <div class="score">${currentPlayerCarriedTime} сек</div>
                 `;
                 roundScores.appendChild(timeInfo);
             }
@@ -945,8 +969,9 @@
                 // Переходим к следующему раунду
                 sendEvent('continue_round');
                 showScreen('gameScreen');
-                // Запускаем таймер с учетом перенесенного времени
-                startTimer(gameSetup.roundDuration, timerState.carriedTime);
+                
+                console.log('continueToNextRound - ждем обновления game_state для запуска таймера');
+                // Таймер будет запущен после получения обновленного game_state
             }
         }
 
@@ -995,14 +1020,25 @@
         function startTimer(durationSeconds, carriedTimeSeconds = 0) {
             stopTimer();
             
-            // Устанавливаем длительность с учетом перенесенного времени
-            const totalDuration = (durationSeconds + carriedTimeSeconds) * 1000;
+            console.log('startTimer вызван с параметрами:', { durationSeconds, carriedTimeSeconds });
+            
+            // Если есть перенесенное время, используем только его, иначе стандартное время
+            const actualDuration = carriedTimeSeconds > 0 ? carriedTimeSeconds : durationSeconds;
+            const totalDuration = actualDuration * 1000;
+            
+            console.log('startTimer - actualDuration:', actualDuration, 'totalDuration:', totalDuration);
+            
             timerState.duration = totalDuration;
             timerState.remainingTime = totalDuration;
             timerState.startTime = performance.now();
             timerState.isRunning = true;
             timerState.isPaused = false;
             timerState.carriedTime = 0; // Сбрасываем перенесенное время после использования
+            
+            // Если использовали перенесенное время, отправляем событие на сервер для сброса
+            if (carriedTimeSeconds > 0) {
+                sendEvent('carried_time_used', { carriedTime: carriedTimeSeconds });
+            }
             
             updateTimerDisplay();
             timerLoop();
@@ -1063,7 +1099,9 @@
             if (timerState.remainingTime <= 0) {
                 // Время истекло
                 timerState.isRunning = false;
-                sendEvent('time_up');
+                // Вычисляем перенесенное время (в данном случае 0, так как время истекло)
+                const carriedTime = Math.ceil(timerState.remainingTime / 1000);
+                sendEvent('time_up', { carriedTime: Math.max(0, carriedTime) });
             } else {
                 timerState.animationFrameId = requestAnimationFrame(timerLoop);
             }

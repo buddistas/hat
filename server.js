@@ -51,7 +51,9 @@ let gameState = {
   },
   // Состояние передачи хода
   isHandoffScreen: false,
-  nextPlayer: null
+  nextPlayer: null,
+  // Перенесенное время для каждого игрока
+  playerCarriedTime: {}
 };
 
 // WebSocket обработчики
@@ -118,22 +120,38 @@ function handleGameEvent(ws, event) {
       break;
       
     case 'end_round':
-      endRound();
+      endRound(event.data);
       broadcastGameState();
       break;
       
     case 'continue_round':
       startNextRound();
-      broadcastGameState();
+      // broadcastGameState() вызывается внутри startNextRound после установки currentWord
       break;
       
     case 'time_up':
-      endPlayerTurn();
+      endPlayerTurn(event.data);
       broadcastGameState();
       break;
       
     case 'start_next_turn':
       startNextPlayerTurn();
+      break;
+      
+    case 'round_completed_carried_time':
+      // Сохраняем перенесенное время для текущего игрока
+      if (gameState.currentPlayer && event.data.carriedTime !== undefined) {
+        gameState.playerCarriedTime[gameState.currentPlayer.id] = event.data.carriedTime;
+        console.log(`Сохранено перенесенное время ${event.data.carriedTime}с для игрока ${gameState.currentPlayer.name} после завершения раунда`);
+      }
+      break;
+      
+    case 'carried_time_used':
+      // Сбрасываем перенесенное время для текущего игрока после использования
+      if (gameState.currentPlayer && gameState.playerCarriedTime[gameState.currentPlayer.id]) {
+        console.log(`Сброшено перенесенное время ${event.data.carriedTime}с для игрока ${gameState.currentPlayer.name} после использования`);
+        delete gameState.playerCarriedTime[gameState.currentPlayer.id];
+      }
       break;
       
     default:
@@ -336,8 +354,14 @@ function shuffleAvailableWords() {
 }
 
 // Функция для окончания хода игрока
-function endPlayerTurn() {
+function endPlayerTurn(data = {}) {
   console.log(`Ход игрока ${gameState.currentPlayer ? gameState.currentPlayer.name : 'неизвестного'} завершен`);
+  
+  // Сохраняем перенесенное время для текущего игрока, если оно передано
+  if (gameState.currentPlayer && data.carriedTime !== undefined) {
+    gameState.playerCarriedTime[gameState.currentPlayer.id] = data.carriedTime;
+    console.log(`Сохранено перенесенное время ${data.carriedTime}с для игрока ${gameState.currentPlayer.name}`);
+  }
   
   // Переключаем ход к следующему игроку
   switchToNextPlayer();
@@ -403,7 +427,13 @@ function resumeGame() {
   gameState.isPaused = false;
 }
 
-function endRound() {
+function endRound(data = {}) {
+  // Сохраняем перенесенное время для текущего игрока, если оно передано
+  if (gameState.currentPlayer && data.carriedTime !== undefined) {
+    gameState.playerCarriedTime[gameState.currentPlayer.id] = data.carriedTime;
+    console.log(`Сохранено перенесенное время ${data.carriedTime}с для игрока ${gameState.currentPlayer.name} при завершении раунда`);
+  }
+  
   // Показываем результаты раунда
   showRoundResults();
   console.log(`Раунд ${gameState.currentRound + 1} завершен`);
@@ -432,6 +462,9 @@ function startNextRound() {
     nextWord();
     
     console.log(`Начался раунд ${gameState.currentRound} с ${gameState.availableWords.length} словами`);
+    
+    // Отправляем обновленное состояние игры с carriedTime
+    broadcastGameState();
   }
 }
 
@@ -466,6 +499,9 @@ function broadcastGameState() {
     type: 'game_state',
     data: gameState
   });
+  
+  // Отладочная информация
+  console.log('Отправляем game_state с playerCarriedTime:', gameState.playerCarriedTime);
   
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
