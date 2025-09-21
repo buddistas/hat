@@ -99,7 +99,7 @@ let gameState = {
   passedWords: [], // Список пропущенных слов для статистики
   isPaused: false,
   scores: {},
-  roundDuration: 60,
+  roundDuration: 30,
   // Очередность ходов (формируется один раз при старте игры)
   turnOrder: {
     teams: [], // Порядок команд
@@ -225,7 +225,7 @@ function startGame(data) {
   gameState.usedWords = [];
   gameState.passedWords = []; // Инициализация списка пропущенных слов
   gameState.scores = {};
-  gameState.roundDuration = data.roundDuration || 60;
+  gameState.roundDuration = data.roundDuration || 30;
   gameState.isHandoffScreen = false;
   gameState.nextPlayer = null;
   

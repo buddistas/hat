@@ -260,6 +260,25 @@
             opacity: 0.9;
         }
 
+        .words-counter {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 10px 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.3s ease;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .words-counter:hover {
+            background: rgba(255,255,255,0.15);
+            transform: translateY(-1px);
+        }
+
         .connection-status {
             position: fixed;
             top: 20px;
@@ -697,8 +716,8 @@
                 <div class="form-group">
                     <label for="roundDuration">Длительность хода (секунды):</label>
                     <select id="roundDuration">
-                        <option value="30">30 секунд</option>
-                        <option value="60" selected>60 секунд</option>
+                        <option value="30" selected>30 секунд</option>
+                        <option value="60">60 секунд</option>
                         <option value="90">90 секунд</option>
                     </select>
                 </div>
@@ -768,10 +787,11 @@
             
             <div class="round-info" id="roundInfo" style="font-weight: bold; font-size: 1.2em; color: #2196F3;">Текущий раунд: 1 из 3</div>
             <div class="player-info" id="playerInfo">Ход игрока</div>
+            <div class="words-counter" id="wordsCounter">Еще слов - 99</div>
             
             <div class="game-area">
                 <div class="game-content">
-                    <div class="timer" id="timer">60</div>
+                    <div class="timer" id="timer">30</div>
                     <div class="current-word" id="currentWord">Нажмите "Пропуск" для следующего слова</div>
                 </div>
                 
@@ -841,7 +861,7 @@
                             <div class="rule-icon">⏱️</div>
                             <div class="rule-text">
                                 <h3>Время</h3>
-                                <p>У вас есть 60 секунд на объяснение слов</p>
+                                <p id="round1Time">У вас есть 30 секунд на объяснение слов</p>
                             </div>
                         </div>
                     </div>
@@ -881,7 +901,7 @@
                             <div class="rule-icon">⏱️</div>
                             <div class="rule-text">
                                 <h3>Время</h3>
-                                <p>У вас есть 60 секунд на объяснение слов</p>
+                                <p id="round1Time">У вас есть 30 секунд на объяснение слов</p>
                             </div>
                         </div>
                     </div>
@@ -921,7 +941,7 @@
                             <div class="rule-icon">⏱️</div>
                             <div class="rule-text">
                                 <h3>Время</h3>
-                                <p>У вас есть 60 секунд на объяснение слов</p>
+                                <p id="round1Time">У вас есть 30 секунд на объяснение слов</p>
                             </div>
                         </div>
                     </div>
@@ -948,7 +968,7 @@
         let gameSetup = {
             players: [],
             teams: [],
-            roundDuration: 60,
+            roundDuration: 30,
             wordsCount: 100
         };
 
@@ -957,8 +977,8 @@
             isRunning: false,
             isPaused: false,
             startTime: null,
-            duration: 60000, // 60 секунд в миллисекундах
-            remainingTime: 60000,
+            duration: 30000, // 30 секунд в миллисекундах
+            remainingTime: 30000,
             animationFrameId: null,
             carriedTime: 0, // Перенесенное время между раундами
             roundStartTime: null, // Время начала раунда для корректного вычисления перенесенного времени
@@ -1161,12 +1181,22 @@
             showScreen('wordsScreen');
         }
 
+        function updateRulesTimeText() {
+            const timeElements = document.querySelectorAll('#round1Time');
+            timeElements.forEach(element => {
+                element.textContent = `У вас есть ${gameSetup.roundDuration} секунд на объяснение слов`;
+            });
+        }
+
         function startGame() {
             const wordsCount = parseInt(document.getElementById('wordsCount').value);
             gameSetup.wordsCount = wordsCount;
             
             // Очищаем перенесенное время при начале новой игры
             clearCarriedTime();
+            
+            // Обновляем текст времени в правилах
+            updateRulesTimeText();
             
             sendEvent('start_game', {
                 players: gameSetup.players,
@@ -1243,7 +1273,7 @@
             gameSetup = {
                 players: [],
                 teams: [],
-                roundDuration: 60,
+                roundDuration: 30,
                 wordsCount: 100
             };
             // Сброс состояния таймера
@@ -1273,6 +1303,23 @@
             const playerInfo = document.getElementById('playerInfo');
             if (gameState.currentPlayer) {
                 playerInfo.textContent = `Ход: ${gameState.currentPlayer.name}`;
+            }
+            
+            // Обновление количества оставшихся слов
+            const wordsCounter = document.getElementById('wordsCounter');
+            if (gameState.availableWords !== undefined) {
+                // Отнимаем единицу, так как текущее слово уже показано
+                const wordsLeft = Math.max(0, gameState.availableWords.length - 1);
+                wordsCounter.textContent = `Еще слов - ${wordsLeft}`;
+                
+                // Меняем цвет в зависимости от количества слов
+                if (wordsLeft <= 10) {
+                    wordsCounter.style.color = '#ff6b6b'; // Красный когда мало слов
+                } else if (wordsLeft <= 25) {
+                    wordsCounter.style.color = '#ff9800'; // Оранжевый когда среднее количество
+                } else {
+                    wordsCounter.style.color = '#ffeb3b'; // Желтый когда много слов
+                }
             }
             
             // Обновление текущего слова
@@ -1528,8 +1575,8 @@
                 isRunning: false,
                 isPaused: false,
                 startTime: null,
-                duration: 60000,
-                remainingTime: 60000,
+                duration: 30000,
+                remainingTime: 30000,
                 animationFrameId: null,
                 carriedTime: 0,
                 roundStartTime: null,
