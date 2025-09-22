@@ -59,13 +59,84 @@ function checkForDuplicates(wordList) {
   return duplicates;
 }
 
-// Загрузка словаря
+// Тип: запись словаря (структурированный формат)
+// word: строка слова для игры
+// category: необязательная категория
+// level: необязательный уровень сложности ("обычный" | "повышенный")
+let wordEntries = [];
 let words = [];
-try {
-  const wordsData = fs.readFileSync(path.join(__dirname, 'public', 'words.csv'), 'utf8');
-  words = wordsData.split(',').map(word => word.trim()).filter(word => word.length > 0);
-  
-  // Проверка на дубликаты при загрузке
+
+function parseCSVLine(line) {
+  // Парсер CSV с поддержкой кавычек и запятых внутри полей
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++; // пропустить экранированную кавычку
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function loadWordsCSV() {
+  const csvPath = path.join(__dirname, 'public', 'words.csv');
+  const raw = fs.readFileSync(csvPath, 'utf8');
+
+  // Определяем формат: одна строка через запятую (старый) или построчно (новый)
+  const hasNewlines = raw.includes('\n');
+
+  // Попытка построчного формата: слово[,категория[,уровень]] с необязательной строкой заголовков
+  if (hasNewlines) {
+    const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length > 0) {
+      const headerCandidate = lines[0].toLowerCase();
+      let startIndex = 0;
+      let hasHeader = false;
+      if (
+        headerCandidate.includes('слово') ||
+        headerCandidate.includes('word')
+      ) {
+        hasHeader = true;
+        startIndex = 1;
+      }
+      const entries = [];
+      for (let i = startIndex; i < lines.length; i++) {
+        const cols = parseCSVLine(lines[i]);
+        if (cols.length === 0) continue;
+        const w = (cols[0] || '').trim();
+        if (!w) continue;
+        const category = (cols[1] || '').trim() || undefined;
+        const level = (cols[2] || '').trim().toLowerCase() || undefined;
+        entries.push({ word: w, category, level });
+      }
+      if (entries.length > 0) {
+        wordEntries = entries;
+        words = entries.map(e => e.word);
+      }
+    }
+  }
+
+  // Старый формат: единая строка слов через запятую
+  if (words.length === 0) {
+    const flat = raw.split(',').map(w => w.trim()).filter(w => w.length > 0);
+    words = flat;
+    wordEntries = flat.map(w => ({ word: w }));
+  }
+
+  // Проверка на дубликаты по отображаемому слову
   const duplicates = checkForDuplicates(words);
   if (duplicates.length > 0) {
     console.warn(`⚠️  Найдены дубликаты в словаре (${duplicates.length}):`);
@@ -75,9 +146,14 @@ try {
   } else {
     console.log(`✅ Словарь загружен без дубликатов: ${words.length} уникальных слов`);
   }
+}
+
+try {
+  loadWordsCSV();
 } catch (error) {
   console.error('Ошибка загрузки словаря:', error.message);
-  words = ['тест', 'слово', 'игра', 'шляпа']; // Fallback слова
+  words = ['тест', 'слово', 'игра', 'шляпа'];
+  wordEntries = words.map(w => ({ word: w }));
 }
 
 // Создание HTTP сервера
@@ -250,6 +326,12 @@ function startGame(data) {
   gameState.teamStatsByRound = { 0: {}, 1: {}, 2: {} };
   gameState.playerStats = {};
   
+  // Сохранение выбранных фильтров слов (необязательно)
+  gameState.wordFilters = {
+    categories: Array.isArray(data.categories) ? data.categories : undefined,
+    levels: Array.isArray(data.levels) ? data.levels.map(l => String(l).toLowerCase()) : undefined
+  };
+
   // Настройка количества слов
   const wordsCount = data.wordsCount || 100;
   gameState.selectedWords = selectRandomWords(wordsCount);
@@ -292,19 +374,49 @@ function startGame(data) {
   nextWord();
 }
 
+function buildFilteredPool() {
+  // Если фильтров нет, вернуть полный список
+  const filters = gameState.wordFilters || {};
+  const { categories, levels } = filters;
+
+  // Если нет структурированных данных, возвращаем обычный список слов
+  if (!Array.isArray(wordEntries) || wordEntries.length === 0) {
+    return [...words];
+  }
+
+  let pool = wordEntries;
+  if (categories && categories.length > 0) {
+    const set = new Set(categories.map(c => String(c).trim().toLowerCase()));
+    pool = pool.filter(e => e.category && set.has(String(e.category).toLowerCase()));
+  }
+  if (levels && levels.length > 0) {
+    const set = new Set(levels.map(l => String(l).trim().toLowerCase()));
+    pool = pool.filter(e => e.level && set.has(String(e.level).toLowerCase()));
+  }
+
+  // Если после фильтров пусто, откатываемся к полному пулу
+  if (pool.length === 0) {
+    pool = wordEntries;
+  }
+
+  return pool.map(e => e.word);
+}
+
 function selectRandomWords(count) {
   // Валидация количества слов
   const minWords = 20;
   const maxWords = 200;
   const validCount = Math.max(minWords, Math.min(maxWords, count));
   
-  if (validCount > words.length) {
-    console.warn(`Запрошено ${validCount} слов, но в словаре только ${words.length}. Используем все доступные слова.`);
-    return [...words];
+  const pool = buildFilteredPool();
+
+  if (validCount > pool.length) {
+    console.warn(`Запрошено ${validCount} слов, но в словаре только ${pool.length}. Используем все доступные слова.`);
+    return [...pool];
   }
   
   // Случайный выбор слов
-  const shuffled = [...words].sort(() => Math.random() - 0.5);
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, validCount);
 }
 

@@ -1066,8 +1066,31 @@
                 </div>
 
                 <div class="form-group">
+                    <label style="display:block; margin-bottom: 8px;">Категории:</label>
+                    <div id="categoriesContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; padding: 6px; border: 1px solid rgba(255,255,255,0.15); border-radius: 12px;"></div>
+                    <div style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items:center;">
+                        <button type="button" class="btn" style="padding: 6px 10px;" onclick="selectAllCategories(true)">Выбрать все</button>
+                        <button type="button" class="btn" style="padding: 6px 10px;" onclick="selectAllCategories(false)">Сбросить</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Уровень сложности:</label>
+                    <div style="display:flex; gap:16px; flex-wrap: wrap;">
+                        <label style="display:flex; align-items:center; gap:6px;">
+                            <input type="checkbox" id="levelBasic" checked>
+                            <span>обычный</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px;">
+                            <input type="checkbox" id="levelAdvanced" checked>
+                            <span>повышенный</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
                     <p style="text-align: center; opacity: 0.8; font-size: 14px; margin-top: 10px;">
-                        Слова будут выбраны случайным образом из игрового словаря
+                        Слова будут выбраны случайным образом из выбранных категорий и уровней
                     </p>
                 </div>
 
@@ -1985,9 +2008,91 @@
             });
         }
 
+        const ALL_CATEGORIES = [
+            'Флора и фауна',
+            'Знаменитости',
+            'Природные явления',
+            'География',
+            'Техника',
+            'Вещи и предметы быта',
+            'Продукты питания и кулинария',
+            'Материалы и вещества',
+            'Развлечения и хобби',
+            'Спорт и фитнес',
+            'Профессии и должности',
+            'Общество и бюрократия',
+            'Здоровье и медицина',
+            'Праздники, обычаи и традиции',
+            'Цифровые продукты',
+            'Фильмы и сериалы',
+            'Книги и литература',
+            'Фразеологизмы, пословицы и поговорки',
+            'История',
+            'Архитектура и городская среда',
+            'Бренды и торговые марки',
+            'Музыка',
+            'Эмоции и черты характера',
+            'Наука и технологии'
+        ];
+
+        function renderCategories() {
+            const container = document.getElementById('categoriesContainer');
+            container.innerHTML = '';
+            ALL_CATEGORIES.forEach((cat, idx) => {
+                const id = `cat_${idx}`;
+                const item = document.createElement('label');
+                item.style.display = 'flex';
+                item.style.alignItems = 'center';
+                item.style.gap = '12px';
+                item.style.padding = '12px 14px';
+                item.style.border = '1px solid rgba(255,255,255,0.18)';
+                item.style.borderRadius = '12px';
+                item.style.background = 'rgba(255,255,255,0.06)';
+                item.style.backdropFilter = 'blur(2px)';
+                item.style.minHeight = '52px';
+                item.style.justifyContent = 'flex-start';
+                item.innerHTML = `
+                    <input type="checkbox" class="categoryBox" id="${id}" data-category="${cat}" style="width:26px;height:26px; accent-color:#ffeb3b;"> 
+                    <span style="font-size:16px; line-height: 1.2;">${cat}</span>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function selectAllCategories(val) {
+            document.querySelectorAll('#categoriesContainer .categoryBox').forEach(cb => {
+                cb.checked = !!val;
+            });
+        }
+
+        // Инициализация контейнера категорий при показе экрана слов
+        const wordsScreenObserver = new MutationObserver(() => {
+            const screen = document.getElementById('wordsScreen');
+            if (screen && screen.style.display !== 'none') {
+                renderCategories();
+                wordsScreenObserver.disconnect();
+            }
+        });
+        wordsScreenObserver.observe(document.body, { childList: true, subtree: true });
+
+        function getSelectedCategories() {
+            const list = [];
+            document.querySelectorAll('#categoriesContainer .categoryBox:checked').forEach(cb => list.push(cb.getAttribute('data-category')));
+            return list;
+        }
+
+        function getSelectedLevels() {
+            const levels = [];
+            if (document.getElementById('levelBasic').checked) levels.push('обычный');
+            if (document.getElementById('levelAdvanced').checked) levels.push('повышенный');
+            return levels;
+        }
+
         function startGame() {
             const wordsCount = parseInt(document.getElementById('wordsCount').value);
             gameSetup.wordsCount = wordsCount;
+            const selectedCategories = getSelectedCategories();
+            const selectedLevels = getSelectedLevels();
             
             // Очищаем перенесенное время при начале новой игры
             clearCarriedTime();
@@ -1999,7 +2104,9 @@
                 players: gameSetup.players,
                 teams: gameSetup.teams,
                 roundDuration: gameSetup.roundDuration,
-                wordsCount: gameSetup.wordsCount
+                wordsCount: gameSetup.wordsCount,
+                categories: selectedCategories.length ? selectedCategories : undefined,
+                levels: selectedLevels.length ? selectedLevels : undefined
             });
             
             // Показываем экран правил первого раунда вместо прямого перехода к игре
