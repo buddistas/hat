@@ -7,13 +7,25 @@
     "start": "node server.js",
     "dev": "node server.js",
     "validate:words": "node src/utils/validateWords.js",
-    "test": "jest"
+    "test": "jest",
+    "test:integration": "jest tests/integration/full_game_websocket.test.js"
   },
   "dependencies": {
-    "ws": "^8.14.2",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "ws": "^8.14.2"
   },
-  "keywords": ["game", "websocket", "hat", "words"],
+  "keywords": [
+    "game",
+    "websocket",
+    "hat",
+    "words"
+  ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/core": "^7.28.4",
+    "@babel/preset-env": "^7.28.3",
+    "babel-jest": "^30.1.2",
+    "jest": "^30.1.3"
+  }
 }
