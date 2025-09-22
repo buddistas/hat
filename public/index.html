@@ -1075,16 +1075,15 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Уровень сложности:</label>
-                    <div style="display:flex; gap:16px; flex-wrap: wrap;">
-                        <label style="display:flex; align-items:center; gap:6px;">
-                            <input type="checkbox" id="levelBasic" checked>
-                            <span>обычный</span>
+                    <label style="display:block; margin-bottom: 8px;">Сложность:</label>
+                    <div style="display:flex; align-items:center; justify-content:center; gap:12px; width:100%;">
+                        <span style="opacity:0.85; font-size:14px;">Нормальная</span>
+                        <label style="position:relative; display:inline-block; width:60px; height:34px;">
+                            <input type="checkbox" id="difficultyToggle" checked style="opacity:0; width:0; height:0;">
+                            <span style="position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:#666; transition:.2s; border-radius:34px;"></span>
+                            <span style="position:absolute; content:''; height:26px; width:26px; left:4px; bottom:4px; background-color:#fff; transition:.2s; border-radius:50%;" id="difficultyKnob"></span>
                         </label>
-                        <label style="display:flex; align-items:center; gap:6px;">
-                            <input type="checkbox" id="levelAdvanced" checked>
-                            <span>повышенный</span>
-                        </label>
+                        <span style="opacity:0.85; font-size:14px;">Повышенная</span>
                     </div>
                 </div>
 
@@ -2052,7 +2051,7 @@
                 item.style.minHeight = '52px';
                 item.style.justifyContent = 'flex-start';
                 item.innerHTML = `
-                    <input type="checkbox" class="categoryBox" id="${id}" data-category="${cat}" style="width:26px;height:26px; accent-color:#ffeb3b;"> 
+                    <input type="checkbox" class="categoryBox" id="${id}" data-category="${cat}" checked style="width:26px;height:26px; accent-color:#ffeb3b;"> 
                     <span style="font-size:16px; line-height: 1.2;">${cat}</span>
                 `;
                 container.appendChild(item);
@@ -2070,6 +2069,18 @@
             const screen = document.getElementById('wordsScreen');
             if (screen && screen.style.display !== 'none') {
                 renderCategories();
+                // Инициализация визуального положения тумблера
+                const toggle = document.getElementById('difficultyToggle');
+                const knob = document.getElementById('difficultyKnob');
+                if (toggle && knob) {
+                    const applyState = () => {
+                        const bg = toggle.checked ? '#2196F3' : '#666';
+                        knob.style.transform = toggle.checked ? 'translateX(26px)' : 'translateX(0)';
+                        knob.previousElementSibling.style.backgroundColor = bg;
+                    };
+                    toggle.addEventListener('change', applyState);
+                    applyState();
+                }
                 wordsScreenObserver.disconnect();
             }
         });
@@ -2082,10 +2093,9 @@
         }
 
         function getSelectedLevels() {
-            const levels = [];
-            if (document.getElementById('levelBasic').checked) levels.push('обычный');
-            if (document.getElementById('levelAdvanced').checked) levels.push('повышенный');
-            return levels;
+            const toggle = document.getElementById('difficultyToggle');
+            if (!toggle) return ['обычный', 'повышенный'];
+            return toggle.checked ? ['обычный', 'повышенный'] : ['обычный'];
         }
 
         function startGame() {
