@@ -8,6 +8,8 @@ const PORT = process.env.PORT || 4000;
 
 // Раздача статических файлов
 app.use(express.static('public'));
+// Serve Sound assets (mp3 files)
+app.use('/Sound', express.static('Sound'));
 
 // Функция нормализации слова согласно плану проекта
 function normalizeWord(word) {
