@@ -604,6 +604,10 @@ function endPlayerTurn(data = {}) {
     console.log(`Сохранено перенесенное время ${data.carriedTime}с для игрока ${gameState.currentPlayer.name}`);
   }
   
+  // Сбрасываем текущее слово при передаче хода, чтобы следующий игрок не получил то же самое слово
+  // Само слово остается в пуле availableWords (если не было угадано), порядок слов будет перемешан при старте следующего хода
+  gameState.currentWord = null;
+  
   // Переключаем ход к следующему игроку
   switchToNextPlayer();
   
@@ -648,11 +652,9 @@ function startNextPlayerTurn() {
   // Перемешиваем слова при смене игрока
   shuffleAvailableWords();
   
-  // Выбираем первое слово для нового хода только если нет текущего слова
-  // (если предыдущий игрок не угадал слово, оно остается в пуле)
-  if (!gameState.currentWord) {
-    nextWord();
-  }
+  // Выбираем первое слово для нового хода
+  // Текущее слово было сброшено в endPlayerTurn(), поэтому всегда берем новое.
+  nextWord();
   
   console.log(`Начался ход игрока: ${gameState.currentPlayer.name}`);
   

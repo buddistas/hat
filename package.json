@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "validate:words": "node src/utils/validateWords.js"
+    "validate:words": "node src/utils/validateWords.js",
+    "test": "jest"
   },
   "dependencies": {
     "ws": "^8.14.2",
