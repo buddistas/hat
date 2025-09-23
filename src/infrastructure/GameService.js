@@ -107,6 +107,9 @@ class GameService {
     
     if (roundFinished) {
       this.endRoundUseCase.execute(this.game);
+      // Важно: сначала отправляем обновленное состояние игры,
+      // чтобы клиенты увидели последнюю статистику перед экраном результатов раунда
+      this.webSocketHandler.broadcastGameState();
       this.webSocketHandler.broadcastRoundCompleted(
         this.game.currentRound + 1,
         this.game.scores
@@ -156,6 +159,8 @@ class GameService {
     if (!this.game) return false;
     
     this.endRoundUseCase.execute(this.game, data);
+    // Сначала обновленное состояние, затем событие завершения раунда
+    this.webSocketHandler.broadcastGameState();
     this.webSocketHandler.broadcastRoundCompleted(
       this.game.currentRound + 1,
       this.game.scores

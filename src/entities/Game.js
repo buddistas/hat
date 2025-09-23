@@ -106,20 +106,18 @@ class Game {
    * Инициализирует очередь ходов
    */
   initializeTurnOrder() {
-    // Случайный порядок команд
-    const shuffledTeams = [...this.teams].sort(() => Math.random() - 0.5);
-    this.turnOrder.teams = shuffledTeams;
+    // Детеминированный порядок команд (как объявлены)
+    this.turnOrder.teams = [...this.teams];
     this.turnOrder.currentTeamIndex = 0;
     this.turnOrder.currentPlayerIndex = 0;
     
-    // Случайный порядок игроков внутри каждой команды
+    // Детеминированный порядок игроков внутри каждой команды
     this.turnOrder.playersByTeam = {};
     this.teams.forEach(team => {
       const teamPlayers = this.players.filter(player => 
         team.hasPlayer(player.id)
       );
-      const shuffledPlayers = [...teamPlayers].sort(() => Math.random() - 0.5);
-      this.turnOrder.playersByTeam[team.id] = shuffledPlayers;
+      this.turnOrder.playersByTeam[team.id] = [...teamPlayers];
     });
   }
 

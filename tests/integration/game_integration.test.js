@@ -83,6 +83,7 @@ describe('Game Integration Tests', () => {
 
     const gameState = gameService.getGameState();
     const initialScore = gameState.scores.team1;
+    const guessedWord = gameState.currentWord; // capture before mutating events
 
     // Угадываем слово
     const result = await gameService.handleEvent({
@@ -94,7 +95,7 @@ describe('Game Integration Tests', () => {
     const updatedGameState = gameService.getGameState();
     expect(updatedGameState.scores.team1).toBe(initialScore + 1);
     expect(updatedGameState.availableWords).toHaveLength(4);
-    expect(updatedGameState.usedWords).toContain(gameState.currentWord);
+    expect(updatedGameState.usedWords).toContain(guessedWord);
   });
 
   test('should handle word passed correctly', async () => {
@@ -263,10 +264,9 @@ describe('Game Integration Tests', () => {
       }
     }
 
-    // Начинаем 4-й раунд (игра должна завершиться)
-    const result = await gameService.handleEvent({
-      type: 'continue_round'
-    });
+    // Начинаем 4-й раунд (игра должна завершиться): нужно два шага, чтобы дойти до >3
+    await gameService.handleEvent({ type: 'continue_round' }); // to round 3
+    const result = await gameService.handleEvent({ type: 'continue_round' }); // to round 4 => end
 
     expect(result).toBe(true);
     expect(webSocketHandler.broadcastedMessages).toContainEqual(
