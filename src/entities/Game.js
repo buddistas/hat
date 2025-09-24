@@ -49,6 +49,13 @@ class Game {
       categories: null,
       levels: null
     };
+
+    // Пропущенные слова по игрокам (персистентны между раундами)
+    this.missedWordsByPlayer = {};
+
+    // Технические флаги для текущего слова
+    this.currentWordFromMissed = false;
+    this.currentWordMissedOwnerId = null;
   }
 
   /**
@@ -69,6 +76,9 @@ class Game {
     // Инициализация статистики
     this.teamStatsByRound = { 0: {}, 1: {}, 2: {} };
     this.playerStats = {};
+    this.missedWordsByPlayer = {};
+    this.currentWordFromMissed = false;
+    this.currentWordMissedOwnerId = null;
     
     // Фильтры слов
     this.wordFilters = {
@@ -209,11 +219,35 @@ class Game {
    * Получает следующее слово
    */
   getNextWord() {
+    // Если основной пул пуст — слов нет вовсе
     if (!this.availableWords || this.availableWords.length === 0) {
       this.currentWord = null;
+      this.currentWordFromMissed = false;
+      this.currentWordMissedOwnerId = null;
       return null;
     }
-    
+
+    // Если у игрока есть личный черный список, сначала пытаемся выбрать слово, которого в нем нет
+    const playerId = this.currentPlayer ? this.currentPlayer.id : null;
+    if (playerId) {
+      const missedSet = new Set(this.missedWordsByPlayer[playerId] || []);
+      const preferred = this.availableWords.find(w => !missedSet.has(w));
+      if (preferred) {
+        this.currentWordFromMissed = false;
+        this.currentWordMissedOwnerId = null;
+        this.currentWord = preferred;
+        return this.currentWord;
+      }
+      // Все оставшиеся слова — из черного списка: можно показывать их
+      this.currentWordFromMissed = true;
+      this.currentWordMissedOwnerId = playerId;
+      this.currentWord = this.availableWords[0];
+      return this.currentWord;
+    }
+
+    // Нет текущего игрока: берем первое доступное
+    this.currentWordFromMissed = false;
+    this.currentWordMissedOwnerId = null;
     this.currentWord = this.availableWords[0];
     return this.currentWord;
   }
@@ -236,7 +270,7 @@ class Game {
       this.playerStats[this.currentPlayer.id].totalScore += 1;
     }
     
-    // Удаляем угаданное слово из пула
+    // Удаляем угаданное слово из пула доступных (всегда)
     const guessedWord = this.currentWord;
     const wordIndex = this.availableWords.indexOf(guessedWord);
     if (wordIndex !== -1) {
@@ -245,14 +279,9 @@ class Game {
     
     this.usedWords.push(guessedWord);
     
-    // Проверяем, не закончились ли слова
-    if (this.availableWords.length === 0) {
-      this.currentWord = null;
-      return true; // Раунд завершен
-    } else {
-      this.getNextWord();
-      return false; // Раунд продолжается
-    }
+    // Выбираем следующее слово; если его нет ни в одном источнике — раунд завершен
+    const next = this.getNextWord();
+    return next === null;
   }
 
   /**
@@ -271,12 +300,21 @@ class Game {
       this.playerStats[this.currentPlayer.id].totalScore -= 1;
     }
     
-    // Перемещаем пропущенное слово в конец очереди
+    // Перемещаем пропущенное слово в конец очереди и добавляем копию в личный черный список
     const currentWord = this.currentWord;
-    const wordIndex = this.availableWords.indexOf(currentWord);
-    if (wordIndex !== -1) {
-      this.availableWords.splice(wordIndex, 1);
+    const wordIndex2 = this.availableWords.indexOf(currentWord);
+    if (wordIndex2 !== -1) {
+      this.availableWords.splice(wordIndex2, 1);
       this.availableWords.push(currentWord);
+    }
+    if (this.currentPlayer) {
+      const playerId = this.currentPlayer.id;
+      if (!this.missedWordsByPlayer[playerId]) {
+        this.missedWordsByPlayer[playerId] = [];
+      }
+      if (!this.missedWordsByPlayer[playerId].includes(currentWord)) {
+        this.missedWordsByPlayer[playerId].push(currentWord);
+      }
     }
     
     // Добавляем в список пропущенных слов
@@ -309,6 +347,10 @@ class Game {
       // Игра завершена
       this.currentWord = null;
       this.playerCarriedTime = {};
+      // Очистка личных списков пропущенных при завершении сессии
+      this.missedWordsByPlayer = {};
+      this.currentWordFromMissed = false;
+      this.currentWordMissedOwnerId = null;
       return true; // Игра завершена
     } else {
       // Сброс для нового раунда

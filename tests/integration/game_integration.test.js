@@ -127,7 +127,8 @@ describe('Game Integration Tests', () => {
     expect(result).toBe(true);
     const updatedGameState = gameService.getGameState();
     expect(updatedGameState.scores.team1).toBe(initialScore - 1);
-    expect(updatedGameState.availableWords).toHaveLength(5); // Слово перемещено в конец
+    // В новой логике слово остается в available (переносится в конец) и копируется в личный missed
+    expect(updatedGameState.availableWords).toHaveLength(5);
     expect(updatedGameState.passedWords).toHaveLength(initialPassedWords + 1);
   });
 

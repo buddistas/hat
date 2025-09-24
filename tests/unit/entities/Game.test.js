@@ -169,10 +169,72 @@ describe('Game', () => {
     expect(game.teamStatsByRound[0].team1).toBe(-1);
     expect(game.playerStats['1'].passed).toBe(1);
     expect(game.playerStats['1'].totalScore).toBe(-1);
-    expect(game.availableWords).toHaveLength(3);
-    expect(game.availableWords[2]).toBe('word1'); // Moved to end
+    // Слово осталось в пуле, перемещено в конец, и добавлено в личный список
+    expect(game.availableWords).toEqual(['word2', 'word3', 'word1']);
+    expect(game.missedWordsByPlayer['1']).toEqual(['word1']);
     expect(game.passedWords).toHaveLength(1);
     expect(game.passedWords[0].word).toBe('word1');
+  });
+
+  test('should pick missed when all available are in missed', () => {
+    game.initialize(players, teams);
+    game.setSelectedWords(['w1']);
+    game.currentPlayer = new Player('1', 'Player 1', 'team1');
+    // Put w1 into missed and keep it in available
+    expect(game.getNextWord()).toBe('w1');
+    game.wordPassed('team1'); // available => ['w1'] (rotated to end), missed['1'] => ['w1']
+    const next = game.getNextWord();
+    expect(next).toBe('w1'); // all available words are in missed, so allowed
+  });
+
+  test('should serve missed when only missed remain and rotate available on pass', () => {
+    game.initialize(players, teams);
+    game.setSelectedWords(['a', 'b']);
+    game.currentPlayer = new Player('1', 'Player 1', 'team1');
+    // Put both into missed
+    expect(game.getNextWord()).toBe('a');
+    game.wordPassed('team1'); // available: ['b','a']; missed: ['a']
+    // Put 'b' into missed too
+    expect(game.getNextWord()).toBe('b');
+    game.wordPassed('team1'); // available: ['a','b']; missed: ['a','b']
+    // Now all available are missed, so next may be 'a'
+    expect(game.getNextWord()).toBe('a');
+    // Pass rotates available
+    game.wordPassed('team1');
+    expect(game.availableWords).toEqual(['b', 'a']);
+    expect(game.missedWordsByPlayer['1']).toEqual(['a', 'b']);
+  });
+
+  test('should not pick from missed while other available words exist', () => {
+    game.initialize(players, teams);
+    game.setSelectedWords(['a', 'b']);
+    game.currentPlayer = new Player('1', 'Player 1', 'team1');
+    // Put 'a' into missed, but it stays in available (rotated)
+    game.getNextWord(); // 'a'
+    game.wordPassed('team1'); // a -> end, and into missed
+    // Next word should be 'b' (not missed) rather than 'a'
+    const next = game.getNextWord();
+    expect(next).toBe('b');
+  });
+
+  test('should persist missed between rounds and clear on game end', () => {
+    game.initialize(players, teams);
+    game.setSelectedWords(['x']);
+    game.currentPlayer = new Player('1', 'Player 1', 'team1');
+    game.getNextWord();
+    game.wordPassed('team1'); // x -> missed['1']
+    expect(game.missedWordsByPlayer['1']).toEqual(['x']);
+    // Start next round (not finishing game yet)
+    game.currentRound = 0;
+    const finished = game.startNextRound();
+    expect(finished).toBe(false);
+    // Missed persists
+    expect(game.missedWordsByPlayer['1']).toEqual(['x']);
+    // Now simulate end of game
+    game.currentRound = 3;
+    const finishedGame = game.startNextRound();
+    expect(finishedGame).toBe(true);
+    expect(game.missedWordsByPlayer).toEqual({});
   });
 
   test('should start next round correctly', () => {

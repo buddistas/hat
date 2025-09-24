@@ -33,8 +33,10 @@ describe('WordPassedUseCase', () => {
     expect(game.teamStatsByRound[0].team1).toBe(-1);
     expect(game.playerStats['1'].passed).toBe(1);
     expect(game.playerStats['1'].totalScore).toBe(-1);
+    // available keeps size, word moved to end
     expect(game.availableWords).toHaveLength(3);
-    expect(game.availableWords[2]).toBe('word1'); // Moved to end
+    expect(game.availableWords[2]).toBe('word1');
+    expect(game.missedWordsByPlayer['1']).toEqual(['word1']);
     expect(game.passedWords).toHaveLength(1);
     expect(game.passedWords[0].word).toBe('word1');
     expect(game.passedWords[0].player).toBe(game.currentPlayer);
@@ -66,10 +68,12 @@ describe('WordPassedUseCase', () => {
     // Pass first word
     useCase.execute(game, data);
     expect(game.availableWords).toEqual(['word2', 'word3', 'word1']);
+    expect(game.missedWordsByPlayer['1']).toEqual(['word1']);
     
     // Pass second word
     useCase.execute(game, data);
     expect(game.availableWords).toEqual(['word3', 'word1', 'word2']);
+    expect(game.missedWordsByPlayer['1']).toEqual(['word1', 'word2']);
   });
 
   test('should track multiple passed words', () => {

@@ -59,7 +59,8 @@ describe('Simple Integration Tests', () => {
     // Пропускаем слово
     game.wordPassed('team1');
     expect(game.scores.team1).toBe(0);
-    expect(game.availableWords).toHaveLength(2);
+  // теперь слово остается в available (в конце) и копируется в личный missed
+  expect(game.availableWords).toHaveLength(2);
     expect(game.passedWords).toHaveLength(1);
 
     // Угадываем все оставшиеся слова

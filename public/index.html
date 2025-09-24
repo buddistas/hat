@@ -2258,8 +2258,48 @@
             const currentWord = document.getElementById('currentWord');
             if (gameState.currentWord) {
                 currentWord.textContent = gameState.currentWord;
+                // Debug-подсветка слов из личного черного списка текущего игрока
+                if (window.__hatDebug && window.__hatDebug.highlightMissed && gameState.currentWordFromMissed) {
+                    currentWord.style.color = '#000000';
+                } else {
+                    currentWord.style.color = '';
+                }
             } else {
                 currentWord.textContent = 'Загрузка...';
+                currentWord.style.color = '';
+            }
+
+            // Debug: вывод черного списка текущего игрока
+            const debugMissed = document.getElementById('debugMissed');
+            if (debugMissed) {
+                const playerId = gameState.currentPlayer ? gameState.currentPlayer.id : null;
+                const allMissed = (gameState.missedWordsByPlayer && playerId)
+                  ? (gameState.missedWordsByPlayer[playerId] || [])
+                  : [];
+                // Рендер
+                debugMissed.innerHTML = '';
+                const title = document.createElement('div');
+                title.textContent = `Черный список (${allMissed.length})`;
+                title.style.fontWeight = '600';
+                title.style.marginBottom = '4px';
+                debugMissed.appendChild(title);
+                const list = document.createElement('div');
+                list.style.maxHeight = '120px';
+                list.style.overflow = 'auto';
+                list.style.lineHeight = '1.4';
+                if (allMissed.length === 0) {
+                  const empty = document.createElement('div');
+                  empty.textContent = '— пусто —';
+                  empty.style.opacity = '0.7';
+                  list.appendChild(empty);
+                } else {
+                  allMissed.forEach((w, idx) => {
+                    const item = document.createElement('div');
+                    item.textContent = `${idx + 1}. ${w}`;
+                    list.appendChild(item);
+                  });
+                }
+                debugMissed.appendChild(list);
             }
         }
 
@@ -2797,6 +2837,59 @@
         // Инициализация при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {
             connectWebSocket();
+            
+            // Debug-панель: подсветка «черных» слов
+            (function initDebugPanel(){
+                const stored = localStorage.getItem('hat_debug_highlight_missed');
+                window.__hatDebug = { highlightMissed: stored === '1' };
+                const panel = document.createElement('div');
+                panel.style.position = 'fixed';
+                panel.style.right = '8px';
+                panel.style.bottom = '8px';
+                panel.style.padding = '6px 10px';
+                panel.style.background = 'rgba(0,0,0,0.5)';
+                panel.style.color = '#fff';
+                panel.style.fontSize = '12px';
+                panel.style.borderRadius = '6px';
+                panel.style.zIndex = '9999';
+                panel.style.userSelect = 'none';
+                panel.style.cursor = 'default';
+                panel.style.display = 'inline-flex';
+                panel.style.alignItems = 'center';
+                panel.style.gap = '6px';
+                const label = document.createElement('label');
+                label.style.display = 'inline-flex';
+                label.style.alignItems = 'center';
+                label.style.gap = '6px';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = !!window.__hatDebug.highlightMissed;
+                checkbox.addEventListener('change', () => {
+                    window.__hatDebug.highlightMissed = checkbox.checked;
+                    localStorage.setItem('hat_debug_highlight_missed', checkbox.checked ? '1' : '0');
+                    updateGameDisplay();
+                });
+                const span = document.createElement('span');
+                span.textContent = 'Debug: подсветка "черных" слов';
+                label.appendChild(checkbox);
+                label.appendChild(span);
+                panel.appendChild(label);
+
+                // Контейнер для списка пропущенных слов текущего игрока
+                const debugMissed = document.createElement('div');
+                debugMissed.id = 'debugMissed';
+                debugMissed.style.minWidth = '220px';
+                debugMissed.style.maxWidth = '320px';
+                debugMissed.style.background = 'rgba(255,255,255,0.08)';
+                debugMissed.style.padding = '6px 8px';
+                debugMissed.style.borderRadius = '4px';
+                debugMissed.style.color = '#fff';
+                debugMissed.style.maxHeight = '150px';
+                debugMissed.style.overflow = 'hidden';
+                panel.appendChild(debugMissed);
+
+                document.body.appendChild(panel);
+            })();
             
             // Добавляем валидацию при изменении количества игроков
             const playerCountSelect = document.getElementById('playerCount');
