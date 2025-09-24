@@ -1085,6 +1085,14 @@
                         </label>
                         <span style="opacity:0.85; font-size:14px;">Повышенная</span>
                     </div>
+                    <!-- Слайдер процента сложных слов -->
+                    <div style="margin-top: 14px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                            <label for="difficultySlider" style="opacity:0.9;">Процент сложных слов</label>
+                            <span id="difficultySliderValue" style="opacity:0.9; font-variant-numeric: tabular-nums;">25%</span>
+                        </div>
+                        <input type="range" id="difficultySlider" min="0" max="100" step="5" value="25" style="width:100%;" disabled>
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -2045,22 +2053,121 @@
             const screen = document.getElementById('wordsScreen');
             if (screen && screen.style.display !== 'none') {
                 renderCategories();
-                // Инициализация визуального положения тумблера
-                const toggle = document.getElementById('difficultyToggle');
-                const knob = document.getElementById('difficultyKnob');
-                if (toggle && knob) {
-                    const applyState = () => {
-                        const bg = toggle.checked ? '#2196F3' : '#666';
-                        knob.style.transform = toggle.checked ? 'translateX(26px)' : 'translateX(0)';
-                        knob.previousElementSibling.style.backgroundColor = bg;
-                    };
-                    toggle.addEventListener('change', applyState);
-                    applyState();
-                }
+                initDifficultyControls();
                 wordsScreenObserver.disconnect();
             }
         });
         wordsScreenObserver.observe(document.body, { childList: true, subtree: true });
+
+        // Кэш для слов повышенной сложности
+        let elevatedWordsCache = null;
+
+        // Функция для проверки, является ли слово повышенной сложности
+        function isWordElevated(word) {
+            if (!word) return false;
+            
+            // Если кэш не загружен, загружаем его
+            if (elevatedWordsCache === null) {
+                loadElevatedWordsCache();
+            }
+            
+            return elevatedWordsCache && elevatedWordsCache.has(word.toUpperCase());
+        }
+
+        // Загрузка кэша слов повышенной сложности
+        function loadElevatedWordsCache() {
+            fetch('/words.csv')
+                .then(response => response.text())
+                .then(csvText => {
+                    const lines = csvText.split('\n');
+                    elevatedWordsCache = new Set();
+                    
+                    lines.forEach(line => {
+                        const parts = line.split(',');
+                        if (parts.length >= 3 && parts[2].trim() === 'повышенный') {
+                            elevatedWordsCache.add(parts[0].trim().toUpperCase());
+                        }
+                    });
+                    
+                    console.log('Загружено слов повышенной сложности:', elevatedWordsCache.size);
+                })
+                .catch(error => {
+                    console.error('Ошибка загрузки words.csv:', error);
+                    elevatedWordsCache = new Set();
+                });
+        }
+
+        // Инициализация тумблера и слайдера сложности
+        function initDifficultyControls() {
+            const toggle = document.getElementById('difficultyToggle');
+            const knob = document.getElementById('difficultyKnob');
+            const slider = document.getElementById('difficultySlider');
+            const sliderValue = document.getElementById('difficultySliderValue');
+            
+            if (!toggle || !knob || !slider || !sliderValue) return;
+
+            const applyState = () => {
+                const bg = toggle.checked ? '#2196F3' : '#666';
+                knob.style.transform = toggle.checked ? 'translateX(26px)' : 'translateX(0)';
+                knob.previousElementSibling.style.backgroundColor = bg;
+                
+                // При включении выставляем минимум 25%, при выключении — 0 и дизейблим
+                if (toggle.checked) {
+                    if (parseInt(slider.value, 10) === 0) {
+                        slider.value = '25';
+                    }
+                    slider.disabled = false;
+                } else {
+                    slider.value = '0';
+                    slider.disabled = true;
+                }
+                sliderValue.textContent = `${slider.value}%`;
+                localStorage.setItem('difficultyToggle', JSON.stringify(toggle.checked));
+                localStorage.setItem('difficultySlider', slider.value);
+            };
+
+            // Восстановление сохраненных настроек
+            try {
+                const savedToggleState = localStorage.getItem('difficultyToggle');
+                const savedSliderValue = localStorage.getItem('difficultySlider');
+                if (savedToggleState !== null) {
+                    toggle.checked = JSON.parse(savedToggleState);
+                }
+                if (savedSliderValue !== null) {
+                    const v = Math.max(0, Math.min(100, Math.round(parseInt(savedSliderValue, 10) / 5) * 5));
+                    slider.value = String(v);
+                } else {
+                    slider.value = toggle.checked ? '25' : '0';
+                }
+            } catch (e) {
+                // ignore localStorage errors
+            }
+
+            // Удаляем старые обработчики если они есть
+            toggle.removeEventListener('change', applyState);
+            slider.removeEventListener('input', handleSliderInput);
+
+            // Добавляем обработчики
+            toggle.addEventListener('change', applyState);
+            slider.addEventListener('input', handleSliderInput);
+
+            function handleSliderInput() {
+                const v = Math.max(0, Math.min(100, Math.round(parseInt(slider.value, 10) / 5) * 5));
+                slider.value = String(v);
+                sliderValue.textContent = `${slider.value}%`;
+                localStorage.setItem('difficultySlider', slider.value);
+                // Автовыключение тумблера при 0%
+                if (v === 0 && toggle.checked) {
+                    toggle.checked = false;
+                    applyState();
+                } else if (v > 0 && !toggle.checked) {
+                    toggle.checked = true;
+                    applyState();
+                }
+            }
+
+            applyState();
+        }
 
         function getSelectedCategories() {
             const list = [];
@@ -2079,6 +2186,8 @@
             gameSetup.wordsCount = wordsCount;
             const selectedCategories = getSelectedCategories();
             const selectedLevels = getSelectedLevels();
+            const slider = document.getElementById('difficultySlider');
+            const hardPercentage = slider ? Math.max(0, Math.min(100, parseInt(slider.value, 10) || 0)) : 0;
             
             // Очищаем перенесенное время при начале новой игры
             clearCarriedTime();
@@ -2091,7 +2200,8 @@
                 roundDuration: gameSetup.roundDuration,
                 wordsCount: gameSetup.wordsCount,
                 categories: selectedCategories.length ? selectedCategories : undefined,
-                levels: selectedLevels.length ? selectedLevels : undefined
+                levels: selectedLevels.length ? selectedLevels : undefined,
+                hardPercentage: hardPercentage
             });
             
             // Показываем экран правил первого раунда вместо прямого перехода к игре
@@ -2259,49 +2369,28 @@
             const currentWord = document.getElementById('currentWord');
             if (gameState.currentWord) {
                 currentWord.textContent = gameState.currentWord;
-                // Debug-подсветка слов из личного черного списка текущего игрока
-                if (window.__hatDebug && window.__hatDebug.highlightMissed && gameState.currentWordFromMissed) {
-                    currentWord.style.color = '#000000';
+                // Debug-подсветка слов повышенной сложности
+                if (window.__hatDebug && window.__hatDebug.highlightElevated) {
+                    // Проверяем уровень сложности из gameState или используем fallback
+                    const isElevated = gameState.currentWordLevel === 'повышенный' || 
+                                     (gameState.currentWord && isWordElevated(gameState.currentWord));
+                    if (isElevated) {
+                        currentWord.style.color = '#000000';
+                        currentWord.style.backgroundColor = '#ffff00'; // Желтый фон для лучшей видимости
+                    } else {
+                        currentWord.style.color = '';
+                        currentWord.style.backgroundColor = '';
+                    }
                 } else {
                     currentWord.style.color = '';
+                    currentWord.style.backgroundColor = '';
                 }
             } else {
                 currentWord.textContent = 'Загрузка...';
                 currentWord.style.color = '';
+                currentWord.style.backgroundColor = '';
             }
 
-            // Debug: вывод черного списка текущего игрока
-            const debugMissed = document.getElementById('debugMissed');
-            if (debugMissed) {
-                const playerId = gameState.currentPlayer ? gameState.currentPlayer.id : null;
-                const allMissed = (gameState.missedWordsByPlayer && playerId)
-                  ? (gameState.missedWordsByPlayer[playerId] || [])
-                  : [];
-                // Рендер
-                debugMissed.innerHTML = '';
-                const title = document.createElement('div');
-                title.textContent = `Черный список (${allMissed.length})`;
-                title.style.fontWeight = '600';
-                title.style.marginBottom = '4px';
-                debugMissed.appendChild(title);
-                const list = document.createElement('div');
-                list.style.maxHeight = '120px';
-                list.style.overflow = 'auto';
-                list.style.lineHeight = '1.4';
-                if (allMissed.length === 0) {
-                  const empty = document.createElement('div');
-                  empty.textContent = '— пусто —';
-                  empty.style.opacity = '0.7';
-                  list.appendChild(empty);
-                } else {
-                  allMissed.forEach((w, idx) => {
-                    const item = document.createElement('div');
-                    item.textContent = `${idx + 1}. ${w}`;
-                    list.appendChild(item);
-                  });
-                }
-                debugMissed.appendChild(list);
-            }
         }
 
         function updateScores() {
@@ -2842,11 +2931,13 @@
         // Инициализация при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {
             connectWebSocket();
+            // Инициализируем контролы сложности
+            setTimeout(initDifficultyControls, 100);
             
-            // Debug-панель: подсветка «черных» слов
+            // Debug-панель: подсветка слов повышенной сложности
             (function initDebugPanel(){
-                const stored = localStorage.getItem('hat_debug_highlight_missed');
-                window.__hatDebug = { highlightMissed: stored === '1' };
+                const stored = localStorage.getItem('hat_debug_highlight_elevated');
+                window.__hatDebug = { highlightElevated: stored === '1' };
                 const panel = document.createElement('div');
                 panel.style.position = 'fixed';
                 panel.style.right = '8px';
@@ -2868,30 +2959,17 @@
                 label.style.gap = '6px';
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.checked = !!window.__hatDebug.highlightMissed;
+                checkbox.checked = !!window.__hatDebug.highlightElevated;
                 checkbox.addEventListener('change', () => {
-                    window.__hatDebug.highlightMissed = checkbox.checked;
-                    localStorage.setItem('hat_debug_highlight_missed', checkbox.checked ? '1' : '0');
+                    window.__hatDebug.highlightElevated = checkbox.checked;
+                    localStorage.setItem('hat_debug_highlight_elevated', checkbox.checked ? '1' : '0');
                     updateGameDisplay();
                 });
                 const span = document.createElement('span');
-                span.textContent = 'Debug: подсветка "черных" слов';
+                span.textContent = 'Debug: подсветка сложных слов';
                 label.appendChild(checkbox);
                 label.appendChild(span);
                 panel.appendChild(label);
-
-                // Контейнер для списка пропущенных слов текущего игрока
-                const debugMissed = document.createElement('div');
-                debugMissed.id = 'debugMissed';
-                debugMissed.style.minWidth = '220px';
-                debugMissed.style.maxWidth = '320px';
-                debugMissed.style.background = 'rgba(255,255,255,0.08)';
-                debugMissed.style.padding = '6px 8px';
-                debugMissed.style.borderRadius = '4px';
-                debugMissed.style.color = '#fff';
-                debugMissed.style.maxHeight = '150px';
-                debugMissed.style.overflow = 'hidden';
-                panel.appendChild(debugMissed);
 
                 document.body.appendChild(panel);
             })();

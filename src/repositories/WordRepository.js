@@ -25,6 +25,9 @@ class WordRepository {
    * Выбирает случайные слова
    * @param {number} count - количество слов
    * @param {Object} filters - фильтры
+   * @param {string[]} filters.categories - категории
+   * @param {string[]} filters.levels - уровни сложности
+   * @param {number} filters.hardPercentage - процент сложных слов (0-100)
    * @returns {Promise<WordEntry[]>}
    */
   async selectRandomWords(count, filters = {}) {

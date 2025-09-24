@@ -138,17 +138,67 @@ class WordFileRepository {
   async selectRandomWords(count, filters = {}) {
     const maxWords = 200;
     const validCount = Math.min(maxWords, count);
+    const { hardPercentage = 0, ...otherFilters } = filters;
     
-    const pool = await this.getWordsByFilters(filters);
-
-    if (validCount > pool.length) {
-      console.warn(`Запрошено ${validCount} слов, но в словаре только ${pool.length}. Используем все доступные слова.`);
-      return [...pool];
+    // Если процент сложных слов не указан или равен 0, используем старую логику
+    if (hardPercentage <= 0) {
+      const pool = await this.getWordsByFilters(otherFilters);
+      
+      if (validCount > pool.length) {
+        console.warn(`Запрошено ${validCount} слов, но в словаре только ${pool.length}. Используем все доступные слова.`);
+        return [...pool];
+      }
+      
+      // Случайный выбор слов
+      const shuffled = [...pool].sort(() => Math.random() - 0.5);
+      return shuffled.slice(0, validCount);
     }
     
-    // Случайный выбор слов
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, validCount);
+    // Новая логика с учетом процента сложных слов
+    const hardWordsCount = Math.round((hardPercentage / 100) * validCount);
+    const normalWordsCount = validCount - hardWordsCount;
+    
+    console.log(`Выбираем ${hardWordsCount} сложных слов (${hardPercentage}%) и ${normalWordsCount} обычных слов`);
+    
+    // Получаем пулы слов
+    const hardPool = await this.getWordsByFilters({ ...otherFilters, levels: ['повышенный'] });
+    const normalPool = await this.getWordsByFilters({ ...otherFilters, levels: ['обычный'] });
+    
+    const selectedWords = [];
+    
+    // Выбираем сложные слова
+    if (hardWordsCount > 0 && hardPool.length > 0) {
+      const shuffledHard = [...hardPool].sort(() => Math.random() - 0.5);
+      const selectedHard = shuffledHard.slice(0, Math.min(hardWordsCount, hardPool.length));
+      selectedWords.push(...selectedHard);
+    }
+    
+    // Выбираем обычные слова
+    if (normalWordsCount > 0 && normalPool.length > 0) {
+      const shuffledNormal = [...normalPool].sort(() => Math.random() - 0.5);
+      const selectedNormal = shuffledNormal.slice(0, Math.min(normalWordsCount, normalPool.length));
+      selectedWords.push(...selectedNormal);
+    }
+    
+    // Если не хватает слов, дополняем из общего пула
+    if (selectedWords.length < validCount) {
+      const allPool = await this.getWordsByFilters(otherFilters);
+      const usedWords = new Set(selectedWords.map(w => w.word));
+      const availableWords = allPool.filter(w => !usedWords.has(w.word));
+      
+      if (availableWords.length > 0) {
+        const shuffledAvailable = [...availableWords].sort(() => Math.random() - 0.5);
+        const needed = validCount - selectedWords.length;
+        const additional = shuffledAvailable.slice(0, Math.min(needed, availableWords.length));
+        selectedWords.push(...additional);
+      }
+    }
+    
+    // Перемешиваем финальный результат
+    const shuffled = [...selectedWords].sort(() => Math.random() - 0.5);
+    
+    console.log(`Итого выбрано ${shuffled.length} слов из ${validCount} запрошенных`);
+    return shuffled;
   }
 }
 

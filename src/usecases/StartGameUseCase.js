@@ -25,7 +25,8 @@ class StartGameUseCase {
       roundDuration: data.roundDuration || options.roundDuration || 30,
       wordsCount: data.wordsCount || options.wordsCount || 100,
       categories: data.categories || options.categories || null,
-      levels: data.levels || options.levels || null
+      levels: data.levels || options.levels || null,
+      hardPercentage: data.hardPercentage || options.hardPercentage || 0
     };
     
     // Создаем новую игру
@@ -49,7 +50,10 @@ class StartGameUseCase {
     // Выбираем слова
     const selectedWords = await this.wordRepository.selectRandomWords(
       actualOptions.wordsCount, 
-      game.wordFilters
+      {
+        ...game.wordFilters,
+        hardPercentage: actualOptions.hardPercentage
+      }
     );
     
     game.setSelectedWords(selectedWords.map(w => w.word));
