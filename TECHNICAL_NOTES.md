@@ -50,7 +50,7 @@
       totalScore: number
     }
   },
-  playerCarriedTime: {[playerId: string]: number} // Очищается при завершении игры
+  playerCarriedTime: {[playerId: string]: number} // секунды; очищается при завершении игры
 }
 ```
 
@@ -101,6 +101,8 @@ saveCarriedTime(carriedTime);
 ```javascript
 // При запуске таймера
 const loadedCarriedTime = loadCarriedTime();
+// Минимум 5 секунд при старте 2-го и 3-го раундов применяется на стороне сервера в Game.startNextRound()
+// На клиенте значения всегда в секундах
 const actualDuration = loadedCarriedTime > 0 ? loadedCarriedTime : durationSeconds;
 
 if (loadedCarriedTime > 0) {

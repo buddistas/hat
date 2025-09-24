@@ -30,8 +30,8 @@ describe('Turn handoff shuffles remaining words and picks a new word', () => {
       env: process.env,
       stdio: 'ignore'
     });
-    // wait a bit for server to start
-    await new Promise(r => setTimeout(r, 500));
+    // wait a bit for server to start (give more time on slower CI/Windows)
+    await new Promise(r => setTimeout(r, 1000));
   }, 10000);
 
   afterAll(() => {
@@ -40,12 +40,26 @@ describe('Turn handoff shuffles remaining words and picks a new word', () => {
     }
   });
 
+  // Helper to connect with retries until server is ready
+  async function connectWithRetry(url, attempts = 20, delayMs = 250) {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const ws = new WebSocket(url);
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('open timeout')), 4000);
+          ws.on('open', () => { clearTimeout(timeout); resolve(); });
+          ws.on('error', (e) => { clearTimeout(timeout); reject(e); });
+        });
+        return ws;
+      } catch (_) {
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+    }
+    throw new Error('Failed to connect to WS server after retries');
+  }
+
   test('next player gets a (potentially) new word after shuffle', async () => {
-    const ws = new WebSocket('ws://localhost:4000');
-    await new Promise((resolve, reject) => {
-      ws.on('open', resolve);
-      ws.on('error', reject);
-    });
+    const ws = await connectWithRetry('ws://localhost:4000');
 
     // Consume initial game_state (empty)
     await waitForMessage(ws, 'game_state').catch(() => {});
@@ -88,7 +102,7 @@ describe('Turn handoff shuffles remaining words and picks a new word', () => {
     expect(state2.availableWords.includes(state2.currentWord)).toBe(true);
 
     ws.close();
-  }, 15000);
+  }, 30000);
 });
 
 

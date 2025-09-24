@@ -311,4 +311,34 @@ describe('Game', () => {
     expect(cloned.selectedWords).toEqual(game.selectedWords);
     expect(cloned.selectedWords).not.toBe(game.selectedWords); // Different reference
   });
+
+  test('should clamp carried time to 5s at start of round 2 when value is 1s', () => {
+    game.initialize(players, teams);
+    game.playerCarriedTime['1'] = 1;
+    game.currentRound = 0;
+    game.startNextRound(); // -> 1, no clamp yet previously
+    expect(game.playerCarriedTime['1']).toBe(1);
+    game.startNextRound(); // -> 2, clamp applies
+    expect(game.playerCarriedTime['1']).toBe(5);
+  });
+
+  test('should clamp carried time to 5s at start of round 2 when value is 4s', () => {
+    game.initialize(players, teams);
+    game.playerCarriedTime['1'] = 4;
+    game.currentRound = 0;
+    game.startNextRound(); // -> 1
+    expect(game.playerCarriedTime['1']).toBe(4);
+    game.startNextRound(); // -> 2
+    expect(game.playerCarriedTime['1']).toBe(5);
+  });
+
+  test('should not change carried time at start of round 2 when value is 6s', () => {
+    game.initialize(players, teams);
+    game.playerCarriedTime['1'] = 6;
+    game.currentRound = 0;
+    game.startNextRound(); // -> 1
+    expect(game.playerCarriedTime['1']).toBe(6);
+    game.startNextRound(); // -> 2
+    expect(game.playerCarriedTime['1']).toBe(6);
+  });
 });

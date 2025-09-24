@@ -343,6 +343,19 @@ class Game {
   startNextRound() {
     this.currentRound++;
     
+    // На старте 2-го и 3-го раунда поднимаем сохраненное время до минимума 5 секунд
+    // Внутренние индексы раундов: 0 (первый), 1 (второй), 2 (третий)
+    if (this.currentRound === 1 || this.currentRound === 2) {
+      if (this.playerCarriedTime) {
+        Object.keys(this.playerCarriedTime).forEach(playerId => {
+          const timeMs = this.playerCarriedTime[playerId];
+          if (typeof timeMs === 'number' && timeMs > 0 && timeMs < 5) {
+            this.playerCarriedTime[playerId] = 5;
+          }
+        });
+      }
+    }
+
     if (this.currentRound > 3) {
       // Игра завершена
       this.currentWord = null;
