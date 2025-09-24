@@ -101,6 +101,37 @@ hat_web/
 - **[TECHNICAL_NOTES.md](TECHNICAL_NOTES.md)** - Детальное описание переноса времени (раздел "Реализация переноса времени на клиенте")
 - **[DOCUMENTATION_STRUCTURE.md](DOCUMENTATION_STRUCTURE.md)** - Структура документации
 
+## Словарь и валидация
+
+В проекте используется валидатор словаря, который теперь умеет читать данные из stdin (живой документ), а при отсутствии stdin валидирует файл `public/words.csv`.
+
+Примеры запуска:
+
+- Валидировать файл по умолчанию:
+```bash
+npm run validate:words
+```
+
+- Валидировать текущие несохраненные правки (через stdin):
+  - Кросс-платформенно (Node):
+```bash
+node -e "require('fs').createReadStream('public/words.csv').pipe(process.stdout)" | node src/utils/validateWords.js
+```
+  - PowerShell 7+ (UTF-8):
+```powershell
+$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+Get-Content -Raw -Encoding utf8 public/words.csv | node src/utils/validateWords.js
+```
+  - PowerShell 5.x (байтовый поток во избежание проблем кодировки):
+```powershell
+Get-Content -Raw -Encoding byte public/words.csv | node src/utils/validateWords.js
+```
+
+Правила валидации:
+- Уровни: `обычный`, `повышенный` (или пусто)
+- Категории: фиксированный список (см. `src/utils/validateWords.js`)
+- Проверяются нормализованные дубликаты (нижний регистр, `ё→е`, без пунктуации, схлопнутые пробелы)
+
 ## Последние изменения
 
 ### 21.09.2025 - Оптимизация документации

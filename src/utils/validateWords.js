@@ -35,14 +35,27 @@ function parseCSVLine(line) {
   return result;
 }
 
-function main() {
-  const csvPath = path.join(__dirname, '..', '..', 'public', 'words.csv');
-  if (!fs.existsSync(csvPath)) {
-    console.error('Файл public/words.csv не найден');
-    process.exit(1);
-  }
+async function main() {
+  const stdinRaw = await new Promise(resolve => {
+    const chunks = [];
+    const { stdin } = process;
+    if (stdin.isTTY) return resolve(null);
+    stdin.setEncoding('utf8');
+    stdin.on('data', chunk => chunks.push(chunk));
+    stdin.on('end', () => resolve(chunks.join('')));
+    stdin.on('error', () => resolve(null));
+    setTimeout(() => resolve(chunks.length ? chunks.join('') : null), 50);
+  });
 
-  const raw = fs.readFileSync(csvPath, 'utf8');
+  let raw = stdinRaw;
+  if (raw == null) {
+    const csvPath = path.join(__dirname, '..', '..', 'public', 'words.csv');
+    if (!fs.existsSync(csvPath)) {
+      console.error('Файл public/words.csv не найден и данных из stdin нет');
+      process.exit(1);
+    }
+    raw = fs.readFileSync(csvPath, 'utf8');
+  }
   const hasNewlines = raw.includes('\n');
 
   let entries = [];
