@@ -29,7 +29,18 @@ function main() {
   const csvPath = path.join(__dirname, '..', 'public', 'words.csv');
   const raw = fs.readFileSync(csvPath, 'utf8');
   const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-  const target = new Set(['Фильмы и сериалы', 'Книги и литература']);
+  const args = process.argv.slice(2);
+  let categories = args;
+  if (categories.length === 0) {
+    // авто‑определение всех категорий из файла, если аргументы не переданы
+    const catSet = new Set();
+    for (const line of lines) {
+      const cols = parseCSVLine(line);
+      if (cols.length >= 2 && cols[1]) catSet.add(cols[1]);
+    }
+    categories = Array.from(catSet);
+  }
+  const target = new Set(categories);
   const acc = {};
   for (const t of target) acc[t] = { total: 0, hi: 0, lo: 0 };
 
