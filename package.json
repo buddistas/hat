@@ -7,6 +7,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "validate:words": "node src/utils/validateWords.js",
+    "stats:words": "node scripts/generate_dictionary_stats.js",
     "test": "jest",
     "test:integration": "jest tests/integration/full_game_websocket.test.js"
   },
