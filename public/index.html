@@ -2121,6 +2121,8 @@
             
             // Показываем экран правил первого раунда вместо прямого перехода к игре
             showScreen('rulesScreen1');
+            // На старте игры гарантируем снятие любой блокировки
+            toggleButtonsDuringPause(false);
         }
 
         // Функции для экранов правил
@@ -2171,10 +2173,30 @@
                 sendEvent('resume_game');
                 pauseBtn.textContent = '⏸️';
                 resumeTimer();
+                toggleButtonsDuringPause(false);
             } else {
                 sendEvent('pause_game');
                 pauseBtn.textContent = '▶️';
                 pauseTimer();
+                toggleButtonsDuringPause(true);
+            }
+        }
+
+        // Блокировка всех кнопок во время паузы, кроме паузы и завершения игры
+        function toggleButtonsDuringPause(isPaused) {
+            try {
+                const allButtons = document.querySelectorAll('button');
+                allButtons.forEach((btn) => {
+                    const isPauseButton = btn.id === 'pauseBtn';
+                    const isEndButton = btn.classList && btn.classList.contains('end-btn');
+                    if (isPauseButton || isEndButton) {
+                        btn.disabled = false;
+                    } else {
+                        btn.disabled = !!isPaused;
+                    }
+                });
+            } catch (e) {
+                console.warn('toggleButtonsDuringPause error:', e);
             }
         }
 
@@ -2184,6 +2206,8 @@
                 stopTimer();
                 // Сбрасываем состояние таймера
                 resetTimer();
+                // Снимаем блокировку кнопок при завершении игры
+                toggleButtonsDuringPause(false);
                 // Переходим на экран настроек игры
                 showScreen('setupScreen');
             }
@@ -2201,6 +2225,8 @@
             };
             // Сброс состояния таймера
             resetTimer();
+            // Снимаем блокировку кнопок при инициализации новой игры
+            toggleButtonsDuringPause(false);
         }
 
         function getCurrentTeam() {
@@ -2895,6 +2921,10 @@
             const playerCountSelect = document.getElementById('playerCount');
             if (playerCountSelect) {
                 playerCountSelect.addEventListener('change', validatePlayerCount);
+            }
+            // На инициализации страницы снимаем любую возможную блокировку
+            if (typeof toggleButtonsDuringPause === 'function') {
+                toggleButtonsDuringPause(false);
             }
         });
     </script>
