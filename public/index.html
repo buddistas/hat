@@ -1194,13 +1194,7 @@
                             </div>
                         </div>
                         
-                        <div class="rule-item">
-                            <div class="rule-icon">⏱️</div>
-                            <div class="rule-text">
-                                <h3>Время</h3>
-                                <p id="round1Time">У вас есть 30 секунд на объяснение слов</p>
-                            </div>
-                        </div>
+                        
                     </div>
                     
                     <button class="btn rules-btn" onclick="buttonClick(startFirstRound)">Ясно</button>
@@ -1234,13 +1228,7 @@
                             </div>
                         </div>
                         
-                        <div class="rule-item">
-                            <div class="rule-icon">⏱️</div>
-                            <div class="rule-text">
-                                <h3>Время</h3>
-                                <p id="round1Time">У вас есть 30 секунд на объяснение слов</p>
-                            </div>
-                        </div>
+                        
                     </div>
                     
                     <button class="btn rules-btn" onclick="buttonClick(startSecondRound)">Ясно</button>
@@ -1274,13 +1262,7 @@
                             </div>
                         </div>
                         
-                        <div class="rule-item">
-                            <div class="rule-icon">⏱️</div>
-                            <div class="rule-text">
-                                <h3>Время</h3>
-                                <p id="round1Time">У вас есть 30 секунд на объяснение слов</p>
-                            </div>
-                        </div>
+                        
                     </div>
                     
                     <button class="btn rules-btn" onclick="buttonClick(startThirdRound)">Ясно</button>
@@ -1852,9 +1834,8 @@
                     const completedRound = message.data.currentRound;
                     
                     if (completedRound === 1) {
-                        // Завершился первый раунд - показываем результаты раунда
-                        showRoundScores();
-                        showScreen('roundScoresScreen');
+                        // Завершился первый раунд - сразу показываем экран правил 2-го раунда
+                        showScreen('rulesScreen2');
                     } else if (completedRound === 2) {
                         // Завершился второй раунд - показываем экран правил 3-го раунда
                         showScreen('rulesScreen3');
@@ -2000,12 +1981,7 @@
             showScreen('wordsScreen');
         }
 
-        function updateRulesTimeText() {
-            const timeElements = document.querySelectorAll('#round1Time');
-            timeElements.forEach(element => {
-                element.textContent = `У вас есть ${gameSetup.roundDuration} секунд на объяснение слов`;
-            });
-        }
+        
 
         const ALL_CATEGORIES = [
             'Флора и фауна',
@@ -2107,8 +2083,7 @@
             // Очищаем перенесенное время при начале новой игры
             clearCarriedTime();
             
-            // Обновляем текст времени в правилах
-            updateRulesTimeText();
+            
             
             sendEvent('start_game', {
                 players: gameSetup.players,
@@ -2387,12 +2362,16 @@
                 // Игра завершена, показываем финальные результаты
                 showResults();
             } else {
-                // Переходим к следующему раунду
-                sendEvent('continue_round');
-                showScreen('gameScreen');
-                
-                console.log('continueToNextRound - ждем обновления game_state для запуска таймера');
-                // Таймер будет запущен после получения обновленного game_state
+                // После первого раунда показываем правила второго раунда вместо мгновенного старта
+                if (nextRound === 2) {
+                    showScreen('rulesScreen2');
+                } else {
+                    // Для переходов, не требующих экрана правил, продолжаем сразу
+                    sendEvent('continue_round');
+                    showScreen('gameScreen');
+                    console.log('continueToNextRound - ждем обновления game_state для запуска таймера');
+                    // Таймер будет запущен после получения обновленного game_state
+                }
             }
         }
 
