@@ -23,6 +23,7 @@ class GameService {
     this.turnManagementUseCase = new TurnManagementUseCase();
     
     this.game = null;
+    this.statsService = webSocketHandler ? webSocketHandler.statsService : null;
   }
 
   /**
@@ -83,6 +84,7 @@ class GameService {
   async handleStartGame(data) {
     this.game = await this.startGameUseCase.execute(data);
     await this.gameRepository.saveGame(this.game);
+    if (this.statsService) this.statsService.startSession(this.game);
     return true;
   }
 
@@ -104,6 +106,7 @@ class GameService {
     
     const roundFinished = this.wordGuessedUseCase.execute(this.game, data);
     await this.gameRepository.saveGame(this.game);
+    if (this.statsService && this.game.currentPlayer) this.statsService.onWordGuessed(this.game.currentPlayer.id, this.game.currentRound);
     
     if (roundFinished) {
       this.endRoundUseCase.execute(this.game);
@@ -127,6 +130,7 @@ class GameService {
     
     this.wordPassedUseCase.execute(this.game, data);
     await this.gameRepository.saveGame(this.game);
+    if (this.statsService && this.game.currentPlayer) this.statsService.onWordPassed(this.game.currentPlayer.id, this.game.currentRound);
     return true;
   }
 
@@ -138,6 +142,7 @@ class GameService {
     
     this.game.pause();
     await this.gameRepository.saveGame(this.game);
+    if (this.statsService) this.statsService.pause();
     return true;
   }
 
@@ -149,6 +154,7 @@ class GameService {
     
     this.game.resume();
     await this.gameRepository.saveGame(this.game);
+    if (this.statsService) this.statsService.resume();
     return true;
   }
 
@@ -159,6 +165,10 @@ class GameService {
     if (!this.game) return false;
     
     this.endRoundUseCase.execute(this.game, data);
+    if (this.statsService) {
+      this.statsService.endTurn();
+      this.statsService.onEndRound(this.game.currentRound, this.game.scores);
+    }
     // Сначала обновленное состояние, затем событие завершения раунда
     this.webSocketHandler.broadcastGameState();
     this.webSocketHandler.broadcastRoundCompleted(
@@ -178,6 +188,7 @@ class GameService {
     await this.gameRepository.saveGame(this.game);
     
     if (gameFinished) {
+      if (this.statsService) this.statsService.endSession(this.game);
       this.webSocketHandler.broadcastGameEnded(this.game);
     }
     
@@ -191,6 +202,7 @@ class GameService {
     if (!this.game) return false;
     
     this.turnManagementUseCase.endPlayerTurn(this.game, data);
+    if (this.statsService) this.statsService.endTurn();
     this.webSocketHandler.broadcastHandoffScreen(
       this.game.nextPlayer,
       this.game.currentRound
@@ -207,6 +219,7 @@ class GameService {
     
     this.turnManagementUseCase.startNextPlayerTurn(this.game);
     await this.gameRepository.saveGame(this.game);
+    if (this.statsService && this.game.currentPlayer) this.statsService.startTurn(this.game.currentPlayer.id, this.game.currentRound);
     return true;
   }
 
@@ -259,6 +272,7 @@ class GameService {
    * Очищает игру
    */
   async clearGame() {
+    if (this.statsService && this.game) this.statsService.endSession(this.game);
     this.game = null;
     await this.gameRepository.clearGame();
   }

@@ -2,17 +2,18 @@
  * Сущность игрока
  */
 class Player {
-  constructor(id, name, teamId) {
+  constructor(id, name, teamId, playerKey = null) {
     this.id = id;
     this.name = name;
     this.teamId = teamId;
+    this.playerKey = playerKey;
   }
 
   /**
    * Создает копию игрока
    */
   clone() {
-    return new Player(this.id, this.name, this.teamId);
+    return new Player(this.id, this.name, this.teamId, this.playerKey);
   }
 
   /**

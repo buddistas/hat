@@ -31,9 +31,20 @@ class StartGameUseCase {
     
     // Создаем новую игру
     const game = new Game();
+    game.gameId = data.gameId || `game-${Date.now()}`;
     
     // Инициализируем игру
-    game.initialize(players, teams, actualOptions);
+    // Attach playerKey (tg:<id> or name:<sha1(normalizedDisplayName)>) if provided; otherwise null
+    const crypto = require('crypto');
+    const normalizeName = (s) => (s || '').toString().trim().toLowerCase();
+    const toSha1 = (s) => crypto.createHash('sha1').update(s, 'utf8').digest('hex');
+    const playersWithKeys = (players || []).map(p => {
+      if (p.playerKey) return p;
+      if (p.telegramUserId) return { ...p, playerKey: `tg:${p.telegramUserId}` };
+      if (p.name) return { ...p, playerKey: `name:${toSha1(normalizeName(p.name))}` };
+      return { ...p, playerKey: null };
+    });
+    game.initialize(playersWithKeys, teams, actualOptions);
     
     // Инициализируем очередь ходов
     game.initializeTurnOrder();

@@ -6,6 +6,7 @@ const Team = require('./Team');
  */
 class Game {
   constructor() {
+    this.gameId = null;
     this.players = [];
     this.teams = [];
     this.currentRound = 0;
@@ -62,7 +63,7 @@ class Game {
    * Инициализирует игру
    */
   initialize(players, teams, options = {}) {
-    this.players = players.map(p => new Player(p.id, p.name, p.teamId));
+    this.players = players.map(p => new Player(p.id, p.name, p.teamId, p.playerKey || null));
     this.teams = teams.map(t => new Team(t.id, t.name, t.players || []));
     this.currentRound = 0;
     this.usedWords = [];

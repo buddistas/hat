@@ -8,6 +8,7 @@ class WebSocketHandler {
     this.wss = new WebSocket.Server({ server });
     this.gameService = gameService;
     this.clients = new Set();
+    this.statsService = null;
     
     this.setupEventHandlers();
   }
@@ -105,6 +106,14 @@ class WebSocketHandler {
       type: 'game_ended',
       data: gameState
     });
+  }
+
+  broadcastStatsUpdate(payload) {
+    this.broadcastMessage({ type: 'stats:update', data: payload });
+  }
+
+  broadcastLeaderboardUpdate() {
+    this.broadcastMessage({ type: 'leaderboard:update' });
   }
 
   /**
