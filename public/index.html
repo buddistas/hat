@@ -2122,26 +2122,11 @@
                     slider.disabled = true;
                 }
                 sliderValue.textContent = `${slider.value}%`;
-                localStorage.setItem('difficultyToggle', JSON.stringify(toggle.checked));
-                localStorage.setItem('difficultySlider', slider.value);
             };
 
-            // Восстановление сохраненных настроек
-            try {
-                const savedToggleState = localStorage.getItem('difficultyToggle');
-                const savedSliderValue = localStorage.getItem('difficultySlider');
-                if (savedToggleState !== null) {
-                    toggle.checked = JSON.parse(savedToggleState);
-                }
-                if (savedSliderValue !== null) {
-                    const v = Math.max(0, Math.min(100, Math.round(parseInt(savedSliderValue, 10) / 5) * 5));
-                    slider.value = String(v);
-                } else {
-                    slider.value = toggle.checked ? '25' : '0';
-                }
-            } catch (e) {
-                // ignore localStorage errors
-            }
+            // Всегда стартуем с дефолтных значений на каждом показе экрана
+            toggle.checked = true;
+            slider.value = '25';
 
             // Удаляем старые обработчики если они есть
             toggle.removeEventListener('change', applyState);
@@ -2155,7 +2140,6 @@
                 const v = Math.max(0, Math.min(100, Math.round(parseInt(slider.value, 10) / 5) * 5));
                 slider.value = String(v);
                 sliderValue.textContent = `${slider.value}%`;
-                localStorage.setItem('difficultySlider', slider.value);
                 // Автовыключение тумблера при 0%
                 if (v === 0 && toggle.checked) {
                     toggle.checked = false;
@@ -2931,7 +2915,7 @@
         // Инициализация при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {
             connectWebSocket();
-            // Инициализируем контролы сложности
+            // Инициализируем контролы сложности (без восстановления из localStorage)
             setTimeout(initDifficultyControls, 100);
             
             // Debug-панель: подсветка слов повышенной сложности
