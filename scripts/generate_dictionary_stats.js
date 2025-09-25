@@ -80,15 +80,16 @@ function toMarkdown({ byCategory, total, elevated }) {
   lines.push(`- **Общее количество слов**: ${total}`);
   lines.push(`- **Процент сложных (\"повышенный\")**: ${elevatedPct.toFixed(2)}%`);
   lines.push('');
-  // Порядок колонок: Категория | Всего | Обычный | Повышенный
-  lines.push('| Категория | Всего | Обычный | Повышенный |');
-  lines.push('|---|---:|---:|---:|');
+  // Порядок колонок: Категория | Всего | Процент сложных
+  lines.push('| Категория | Всего | Процент сложных |');
+  lines.push('|---|---:|---:|');
   for (const [category, stats] of rows) {
     const name = category || '(без категории)';
-    lines.push(`| ${name} | ${stats.total} | ${stats.normal} | ${stats.elevated} |`);
+    const pct = stats.total > 0 ? (stats.elevated / stats.total) * 100 : 0;
+    lines.push(`| ${name} | ${stats.total} | ${pct.toFixed(2)}% |`);
   }
   lines.push('');
-  lines.push(`Итого: обычных — ${total - elevated}, повышенных — ${elevated}, всего — ${total}.`);
+  lines.push(`Итого: сложных — ${elevated} (${elevatedPct.toFixed(2)}%), всего — ${total}.`);
   lines.push('');
   return lines.join('\n');
 }
