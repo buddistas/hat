@@ -38,7 +38,8 @@ describe('StartGameUseCase', () => {
     expect(game.currentPlayer).toBeDefined();
     expect(mockWordRepository.selectRandomWords).toHaveBeenCalledWith(100, {
       categories: null,
-      levels: null
+      levels: null,
+      hardPercentage: 0
     });
   });
 
@@ -62,7 +63,8 @@ describe('StartGameUseCase', () => {
     expect(game.wordFilters.levels).toEqual(['обычный']);
     expect(mockWordRepository.selectRandomWords).toHaveBeenCalledWith(50, {
       categories: ['животные'],
-      levels: ['обычный']
+      levels: ['обычный'],
+      hardPercentage: 0
     });
   });
 
@@ -114,7 +116,8 @@ describe('StartGameUseCase', () => {
 
     expect(mockWordRepository.selectRandomWords).toHaveBeenCalledWith(25, {
       categories: null,
-      levels: null
+      levels: null,
+      hardPercentage: 0
     });
     expect(game.selectedWords).toHaveLength(25);
   });

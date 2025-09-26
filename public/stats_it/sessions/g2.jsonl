@@ -1,0 +1,10 @@
+{"type":"SESSION_STARTED","ts":1000,"game":{"gameId":"g2"}}
+{"type":"START_TURN","ts":2000,"playerId":"p1","round":0}
+{"type":"WORD_GUESSED","ts":5000,"playerId":"p1","round":0}
+{"type":"END_TURN","ts":6000,"playerId":"p1","round":0,"activeMs":4000}
+{"type":"START_TURN","ts":7000,"playerId":"p2","round":0}
+{"type":"WORD_GUESSED","ts":13000,"playerId":"p2","round":0}
+{"type":"END_TURN","ts":14000,"playerId":"p2","round":0,"activeMs":7000}
+{"type":"TOTAL_GAME_DURATION_CALCULATED","ts":15000,"totalGameDurationSeconds":0}
+{"type":"SESSION_FACTS_CALCULATED","ts":15000,"facts":{}}
+{"type":"SESSION_ENDED","ts":15000}
