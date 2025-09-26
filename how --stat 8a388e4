@@ -1,0 +1,36 @@
+[33mcommit 7c1df577ffefe3f97a48137f26bdc3e3d7b1033d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: JackPaul <buddistas@gmail.com>
+Date:   Fri Sep 26 13:49:08 2025 +0300
+
+    Сделал скрипт сортировки словаря и разогнал словарь до 3185 слов
+
+ public/dictionary_statistics.md                    |   28 [32m+[m[31m-[m
+ public/words.csv                                   |  963 [32m+++[m[31m---[m
+ ...v => words_backup_2025-01-26T12-00-00-000Z.csv} |  729 [32m+++[m[31m--[m
+ public/words_backup_2025-09-25T16-47-44-392Z.csv   | 3010 [31m------------------[m
+ public/words_backup_2025-09-25T19-06-37-880Z.csv   | 3061 [31m-------------------[m
+ ...v => words_backup_2025-09-25T20-00-11-448Z.csv} |  254 [32m+[m[31m-[m
+ public/words_backup_2025-09-25T22-03-54-395Z.csv   | 3150 [32m+++++++++++++++++++[m
+ public/words_backup_2025-09-26T10-18-11-794Z.csv   | 3150 [32m+++++++++++++++++++[m
+ ...v => words_backup_2025-09-26T10-24-46-868Z.csv} |  291 [32m+[m[31m-[m
+ public/words_backup_2025-09-26T10-44-21-699Z.csv   | 3185 [32m++++++++++++++++++++[m
+ ...v => words_backup_2025-09-26T13-42-30-750Z.csv} |  835 [32m++[m[31m---[m
+ public/words_backup_2025-09-26T13-42-36-623Z.csv   | 3138 [32m+++++++++++++++++++[m
+ public/words_backup_2025-09-26T13-42-42-757Z.csv   | 3138 [32m+++++++++++++++++++[m
+ public/words_processed.csv                         | 2906 [31m------------------[m
+ scripts/{ => add_ing}/add_clothing_50.js           |    0
+ .../{ => add_ing}/add_fictional_characters_50.js   |    0
+ scripts/{ => add_ing}/add_high_freq_85.js          |    0
+ scripts/{ => add_ing}/add_high_freq_more.js        |    0
+ scripts/{ => add_ing}/add_household_100.js         |    0
+ scripts/{ => add_ing}/add_top200_custom.js         |    0
+ .../{ => add_ing}/add_top200_three_categories.js   |    0
+ scripts/{ => add_ing}/add_winged_expressions_50.js |    0
+ scripts/check_duplicates.out.txt                   |  Bin [31m18086[m -> [32m0[m bytes
+ scripts/dedupe_preserve_order.js                   |   84 [31m-[m
+ scripts/find_and_move_duplicates.js                |  398 [31m---[m
+ scripts/find_and_move_duplicates_fixed.js          |  399 [31m---[m
+ scripts/preview_high_freq_85.js                    |   87 [31m-[m
+ scripts/remove_duplicates.js                       |  268 [31m--[m
+ scripts/sort_dictionary.js                         |  353 [32m+++[m
+ 29 files changed, 17887 insertions(+), 11540 deletions(-)
