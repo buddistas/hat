@@ -14,7 +14,19 @@ class StatsService {
       endedAt: null,
       perPlayer: {}, // playerId -> { roundActiveMs, guessedByRound, passedByRound, totalScore, bestTurnByRound }
       perTeam: {},
-      _currentTurn: null // { playerId, round, startedAt, lastResumeAt, accumulatedMs, paused }
+      _currentTurn: null, // { playerId, round, startedAt, lastResumeAt, accumulatedMs, paused }
+      // Новые метрики сессии
+      wordTracking: {
+        passedWords: {}, // счетчик пропусков по словам
+        wordDisplayTime: {} // суммарное время показа слова в секундах
+      },
+      duration: {
+        roundDurations: { 0: 0, 1: 0, 2: 0 }, // продолжительность раундов в секундах
+        totalGameDuration: 0 // общая продолжительность партии в секундах
+      },
+      // Временные переменные для отслеживания
+      _currentWord: null, // текущее показываемое слово
+      _wordShownAt: null // время показа текущего слова
     };
   }
 
@@ -31,6 +43,13 @@ class StatsService {
     if (!this.session.gameId) return;
     this.session.endedAt = Date.now();
     this._finalizeOpenTurnIfAny();
+    
+    // Расчет общей продолжительности партии
+    this._calculateTotalGameDuration();
+    
+    // Расчет фактов сессии
+    this._calculateSessionFacts();
+    
     this.repo.appendSessionEvent(this.session.gameId, { type: 'SESSION_ENDED', ts: Date.now() });
     // Apply to player aggregates only if winners exist (repo enforces as well, but avoid work)
     const winners = this._computeWinners(game);
@@ -115,7 +134,7 @@ class StatsService {
     this.pushSessionUpdate();
   }
 
-  endTurn() {
+  endTurn(timerRemainingAtShow = null) {
     const t = this.session._currentTurn;
     if (!t) return;
     if (!t.paused && t.lastResumeAt) {
@@ -130,6 +149,28 @@ class StatsService {
         p.bestTurnByRound[t.round] = t.pointsDelta;
       }
     }
+    
+    // Обработка истечения времени хода - обновление времени показа слова
+    if (timerRemainingAtShow !== null && this.session._currentWord && this.session._wordShownAt) {
+      const word = this.session._currentWord;
+      const displayTimeSeconds = Math.max(0, timerRemainingAtShow);
+      
+      this.session.wordTracking.wordDisplayTime[word] = 
+        (this.session.wordTracking.wordDisplayTime[word] || 0) + displayTimeSeconds;
+      
+      this.repo.appendSessionEvent(this.session.gameId, { 
+        type: 'WORD_DISPLAY_TIME_UPDATED_TIMEOUT', 
+        ts: Date.now(), 
+        word, 
+        displayTimeSeconds,
+        totalTimeSeconds: this.session.wordTracking.wordDisplayTime[word]
+      });
+      
+      // Очистка текущего слова
+      this.session._currentWord = null;
+      this.session._wordShownAt = null;
+    }
+    
     this.repo.appendSessionEvent(this.session.gameId, { type: 'END_TURN', ts: Date.now(), playerId: t.playerId, round: t.round, activeMs: t.accumulatedMs });
     this.session._currentTurn = null;
     this.pushSessionUpdate();
@@ -143,6 +184,10 @@ class StatsService {
       this.session._currentTurn.pointsDelta += 1;
       this.session._currentTurn.guessed += 1;
     }
+    
+    // Обновление времени показа слова при угадывании
+    this._updateWordDisplayTime();
+    
     this.repo.appendSessionEvent(this.session.gameId, { type: 'WORD_GUESSED', ts: Date.now(), playerId, round });
     this.pushSessionUpdate();
   }
@@ -155,13 +200,150 @@ class StatsService {
       this.session._currentTurn.pointsDelta -= 1;
       this.session._currentTurn.passed += 1;
     }
+    
+    // Обновление счетчика пропусков и времени показа слова
+    this._updatePassedWordCount();
+    this._updateWordDisplayTime();
+    
     this.repo.appendSessionEvent(this.session.gameId, { type: 'WORD_PASSED', ts: Date.now(), playerId, round });
     this.pushSessionUpdate();
   }
 
   onEndRound(round, scores) {
+    // Фиксация продолжительности раунда
+    this._recordRoundDuration(round);
+    
     this.repo.appendSessionEvent(this.session.gameId, { type: 'END_ROUND', ts: Date.now(), round, scores });
     this.pushSessionUpdate();
+  }
+
+  // Новый метод для отслеживания показа слова
+  onWordShown(word) {
+    this.session._currentWord = word;
+    this.session._wordShownAt = Date.now();
+    this.repo.appendSessionEvent(this.session.gameId, { type: 'WORD_SHOWN', ts: Date.now(), word });
+  }
+
+  // Обновление счетчика пропущенных слов
+  _updatePassedWordCount() {
+    if (this.session._currentWord) {
+      const word = this.session._currentWord;
+      this.session.wordTracking.passedWords[word] = (this.session.wordTracking.passedWords[word] || 0) + 1;
+      this.repo.appendSessionEvent(this.session.gameId, { 
+        type: 'WORD_PASSED_COUNT_UPDATED', 
+        ts: Date.now(), 
+        word, 
+        count: this.session.wordTracking.passedWords[word] 
+      });
+    }
+  }
+
+  // Обновление времени показа слова
+  _updateWordDisplayTime() {
+    if (this.session._currentWord && this.session._wordShownAt) {
+      const word = this.session._currentWord;
+      const displayTimeMs = Date.now() - this.session._wordShownAt;
+      const displayTimeSeconds = Math.max(0, displayTimeMs / 1000);
+      
+      this.session.wordTracking.wordDisplayTime[word] = 
+        (this.session.wordTracking.wordDisplayTime[word] || 0) + displayTimeSeconds;
+      
+      this.repo.appendSessionEvent(this.session.gameId, { 
+        type: 'WORD_DISPLAY_TIME_UPDATED', 
+        ts: Date.now(), 
+        word, 
+        displayTimeSeconds,
+        totalTimeSeconds: this.session.wordTracking.wordDisplayTime[word]
+      });
+    }
+    
+    // Очистка текущего слова
+    this.session._currentWord = null;
+    this.session._wordShownAt = null;
+  }
+
+  // Фиксация продолжительности раунда
+  _recordRoundDuration(round) {
+    if (this.session.perPlayer) {
+      let totalDurationMs = 0;
+      Object.values(this.session.perPlayer).forEach(player => {
+        if (player.roundActiveMs && player.roundActiveMs[round]) {
+          totalDurationMs += player.roundActiveMs[round];
+        }
+      });
+      
+      const durationSeconds = Math.max(0, totalDurationMs / 1000);
+      this.session.duration.roundDurations[round] = durationSeconds;
+      
+      this.repo.appendSessionEvent(this.session.gameId, { 
+        type: 'ROUND_DURATION_RECORDED', 
+        ts: Date.now(), 
+        round, 
+        durationSeconds 
+      });
+    }
+  }
+
+  // Расчет общей продолжительности партии
+  _calculateTotalGameDuration() {
+    const totalSeconds = Object.values(this.session.duration.roundDurations).reduce((sum, duration) => sum + duration, 0);
+    this.session.duration.totalGameDuration = totalSeconds;
+    
+    this.repo.appendSessionEvent(this.session.gameId, { 
+      type: 'TOTAL_GAME_DURATION_CALCULATED', 
+      ts: Date.now(), 
+      totalGameDurationSeconds: totalSeconds 
+    });
+  }
+
+  // Расчет фактов сессии
+  _calculateSessionFacts() {
+    // Инициализация facts если не существует
+    if (!this.session.facts) {
+      this.session.facts = {};
+    }
+
+    // Самое часто пропускаемое слово
+    const passedWords = this.session.wordTracking.passedWords;
+    if (Object.keys(passedWords).length > 0) {
+      let mostPassedWord = null;
+      let maxCount = 0;
+      
+      Object.entries(passedWords).forEach(([word, count]) => {
+        if (count > maxCount) {
+          maxCount = count;
+          mostPassedWord = word;
+        }
+      });
+      
+      if (mostPassedWord) {
+        this.session.facts.mostPassedWord = { word: mostPassedWord, count: maxCount };
+      }
+    }
+
+    // Самое сложное слово (на которое потрачено больше всего времени)
+    const wordDisplayTime = this.session.wordTracking.wordDisplayTime;
+    if (Object.keys(wordDisplayTime).length > 0) {
+      let hardestWord = null;
+      let maxTime = 0;
+      
+      Object.entries(wordDisplayTime).forEach(([word, time]) => {
+        if (time > maxTime) {
+          maxTime = time;
+          hardestWord = word;
+        }
+      });
+      
+      if (hardestWord) {
+        this.session.facts.hardestWord = { word: hardestWord, totalTimeSeconds: maxTime };
+      }
+    }
+
+    this.repo.appendSessionEvent(this.session.gameId, { 
+      type: 'SESSION_FACTS_CALCULATED', 
+      ts: Date.now(), 
+      facts: this.session.facts 
+    });
   }
 
   _computeWinners(game) {

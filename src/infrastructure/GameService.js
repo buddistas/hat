@@ -95,6 +95,12 @@ class GameService {
     if (!this.game) return false;
     
     this.nextWordUseCase.execute(this.game);
+    
+    // Отслеживание показа слова для статистики
+    if (this.statsService && this.game.currentWord) {
+      this.statsService.onWordShown(this.game.currentWord);
+    }
+    
     return true;
   }
 
@@ -202,7 +208,11 @@ class GameService {
     if (!this.game) return false;
     
     this.turnManagementUseCase.endPlayerTurn(this.game, data);
-    if (this.statsService) this.statsService.endTurn();
+    if (this.statsService) {
+      // Передаем время, оставшееся на таймере в момент истечения
+      const timerRemainingAtShow = data && data.timerRemainingAtShow ? data.timerRemainingAtShow : null;
+      this.statsService.endTurn(timerRemainingAtShow);
+    }
     this.webSocketHandler.broadcastHandoffScreen(
       this.game.nextPlayer,
       this.game.currentRound

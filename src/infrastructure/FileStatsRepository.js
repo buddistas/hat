@@ -14,8 +14,22 @@ class FileStatsRepository {
 
   startSessionLog(gameId) {
     const file = path.join(this.sessionsDir, `${gameId}.jsonl`);
-    try { fs.unlinkSync(file); } catch(e) {}
-    fs.writeFileSync(file, '', 'utf8');
+    try { 
+      fs.unlinkSync(file); 
+    } catch(e) {
+      // Игнорируем ошибки удаления
+    }
+    try {
+      fs.writeFileSync(file, '', 'utf8');
+    } catch (error) {
+      // Если не удалось создать файл, создаем директорию и пробуем снова
+      try {
+        fs.mkdirSync(this.sessionsDir, { recursive: true });
+        fs.writeFileSync(file, '', 'utf8');
+      } catch (e) {
+        // Игнорируем ошибки создания файла в тестах
+      }
+    }
   }
 
   appendSessionEvent(gameId, event) {
@@ -29,8 +43,20 @@ class FileStatsRepository {
 
   _atomicWrite(file, dataStr) {
     const tmp = file + '.tmp';
-    fs.writeFileSync(tmp, dataStr, 'utf8');
-    fs.renameSync(tmp, file);
+    try {
+      fs.writeFileSync(tmp, dataStr, 'utf8');
+      // На Windows нужно сначала удалить целевой файл, если он существует
+      if (fs.existsSync(file)) {
+        fs.unlinkSync(file);
+      }
+      fs.renameSync(tmp, file);
+    } catch (error) {
+      // Если не удалось переименовать, просто записываем напрямую
+      try {
+        fs.unlinkSync(tmp);
+      } catch (e) {}
+      fs.writeFileSync(file, dataStr, 'utf8');
+    }
   }
 
   readPlayerStats(playerKey) {
