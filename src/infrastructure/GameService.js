@@ -83,7 +83,7 @@ class GameService {
    */
   async handleStartGame(data) {
     this.game = await this.startGameUseCase.execute(data);
-    await this.gameRepository.saveGame(this.game);
+    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
     if (this.statsService) this.statsService.startSession(this.game);
     return true;
   }
@@ -111,7 +111,7 @@ class GameService {
     if (!this.game) return false;
     
     const roundFinished = this.wordGuessedUseCase.execute(this.game, data);
-    await this.gameRepository.saveGame(this.game);
+    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
     if (this.statsService && this.game.currentPlayer) this.statsService.onWordGuessed(this.game.currentPlayer.id, this.game.currentRound);
     
     if (roundFinished) {
@@ -135,7 +135,7 @@ class GameService {
     if (!this.game) return false;
     
     this.wordPassedUseCase.execute(this.game, data);
-    await this.gameRepository.saveGame(this.game);
+    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
     if (this.statsService && this.game.currentPlayer) this.statsService.onWordPassed(this.game.currentPlayer.id, this.game.currentRound);
     return true;
   }
@@ -147,7 +147,7 @@ class GameService {
     if (!this.game) return false;
     
     this.game.pause();
-    await this.gameRepository.saveGame(this.game);
+    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
     if (this.statsService) this.statsService.pause();
     return true;
   }
@@ -159,7 +159,7 @@ class GameService {
     if (!this.game) return false;
     
     this.game.resume();
-    await this.gameRepository.saveGame(this.game);
+    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
     if (this.statsService) this.statsService.resume();
     return true;
   }
@@ -191,10 +191,12 @@ class GameService {
     if (!this.game) return false;
     
     const gameFinished = this.turnManagementUseCase.startNextRound(this.game);
-    await this.gameRepository.saveGame(this.game);
+    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
     
     if (gameFinished) {
       if (this.statsService) this.statsService.endSession(this.game);
+      // Сохраняем финальные результаты игры
+      await this.gameRepository.saveGame(this.game);
       this.webSocketHandler.broadcastGameEnded(this.game);
     }
     
@@ -217,7 +219,7 @@ class GameService {
       this.game.nextPlayer,
       this.game.currentRound
     );
-    await this.gameRepository.saveGame(this.game);
+    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
     return false; // Не отправляем game_state
   }
 
@@ -228,7 +230,7 @@ class GameService {
     if (!this.game) return false;
     
     this.turnManagementUseCase.startNextPlayerTurn(this.game);
-    await this.gameRepository.saveGame(this.game);
+    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
     if (this.statsService && this.game.currentPlayer) this.statsService.startTurn(this.game.currentPlayer.id, this.game.currentRound);
     return true;
   }
@@ -240,7 +242,7 @@ class GameService {
     if (!this.game) return false;
     
     this.turnManagementUseCase.saveCarriedTime(this.game, data);
-    await this.gameRepository.saveGame(this.game);
+    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
     return false; // Не отправляем game_state
   }
 
@@ -251,7 +253,7 @@ class GameService {
     if (!this.game) return false;
     
     this.turnManagementUseCase.useCarriedTime(this.game);
-    await this.gameRepository.saveGame(this.game);
+    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
     return false; // Не отправляем game_state
   }
 

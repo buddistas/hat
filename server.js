@@ -2,12 +2,11 @@ const express = require('express');
 const path = require('path');
 
 // Импорт наших классов
-const WordFileRepository = require('./src/infrastructure/WordFileRepository');
-const InMemoryGameRepository = require('./src/infrastructure/InMemoryGameRepository');
+const repositoryFactory = require('./src/infrastructure/RepositoryFactory');
 const GameService = require('./src/infrastructure/GameService');
 const WebSocketHandler = require('./src/infrastructure/WebSocketHandler');
-const FileStatsRepository = require('./src/infrastructure/FileStatsRepository');
 const StatsService = require('./src/infrastructure/StatsService');
+const mongoConnection = require('./src/infrastructure/MongoConnection');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -22,10 +21,10 @@ const server = app.listen(PORT, () => {
   console.log(`Сервер запущен на http://localhost:${PORT}`);
 });
 
-// Инициализация репозиториев
-const wordRepository = new WordFileRepository(path.join(__dirname, 'public', 'words.csv'));
-const gameRepository = new InMemoryGameRepository();
-const statsRepository = new FileStatsRepository(path.join(__dirname, 'public', 'stats'));
+// Инициализация репозиториев через фабрику
+const wordRepository = repositoryFactory.createWordRepository();
+const gameRepository = repositoryFactory.createGameRepository();
+const statsRepository = repositoryFactory.createStatsRepository();
 
 // Инициализация WebSocket обработчика
 const webSocketHandler = new WebSocketHandler(server, null);
@@ -38,6 +37,9 @@ gameService.statsService = statsService;
 
 // Устанавливаем gameService в WebSocketHandler
 webSocketHandler.gameService = gameService;
+
+// Выводим информацию о конфигурации
+console.log('🔧 Конфигурация репозиториев:', repositoryFactory.getConfigurationInfo());
 // Простейшие API для чтения статистики
 app.get('/api/stats/player/:playerKey', (req, res) => {
   const data = statsService.getPlayerStats(req.params.playerKey);
@@ -57,11 +59,18 @@ app.get('/api/stats/session/:gameId', (req, res) => {
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('Завершение работы сервера...');
   
   // Закрываем WebSocket соединения
   webSocketHandler.close();
+  
+  // Закрываем подключение к MongoDB
+  try {
+    await mongoConnection.disconnect();
+  } catch (error) {
+    console.error('Ошибка отключения от MongoDB:', error.message);
+  }
   
   // Закрываем HTTP сервер
   server.close(() => {

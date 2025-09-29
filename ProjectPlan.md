@@ -184,7 +184,8 @@ hat_web/
 - **Корректировка**: Автоматическая корректировка через событие `visibilitychange` при возвращении в фокус.
 - **Формулы**:
   - `remainingTime = max(0, duration - (now - startTime))`
-  - `carry = ceil(remainingTime / 1000)` - перенос времени между раундами
+  - `carry = ceil(remainingTime / 1000)` — перенос времени между раундами (в секундах)
+  - На старте 2‑го и 3‑го раунда применяется правило минимума: если перенесённое время `carry ∈ (0;5)`, то используется `5` секунд. Это реализовано на стороне сервера в `src/entities/Game.js` при переходе раунда (`currentRound === 1 || currentRound === 2`).
 - **Особенности**:
   - Точность до миллисекунд
   - Устойчивость к проблемам фоновых вкладок
@@ -278,6 +279,7 @@ hat_web/
 - Баланс сложных слов
 - Метрика процентажа угаданных сложных слов + соответствующая стата после игры.
 - Возможность редактировать состав команды прямо по ходу матча
+
 
 ## 19. Принципы пополнения словаря
 - **Оглавление**: первая строка - всегда оглавление.
@@ -506,7 +508,190 @@ playerStats: {
 - **Валидация данных**: тесты для проверки корректности форматов времени и счетчиков
 - **Производительность**: тесты для проверки отсутствия утечек памяти при длительных сессиях
 
-### 20.18. Миграция на удалённый сервер с БД
+### 20.18. Интеграция MongoDB (локальная база данных)
+  Строка подключения для программ:
+
+#### 20.18.1. Цели интеграции MongoDB
+- **Основная цель**: Централизованное хранение статистики пользователей и словарей игры
+- **Архитектура**: Локальная игра с минимальным взаимодействием с сервером (только загрузка данных в начале и сохранение результатов в конце)
+- **Данные для хранения**: Словари игры и статистика пользователей (финальные результаты, без промежуточных состояний)
+- **Аналитика**: Статистика по каждому отдельному пользователю и общие рейтинги
+
+#### 20.18.2. Упрощение архитектуры
+- **Удаление избыточности**: Убрать постоянное сохранение промежуточного состояния игры в БД
+- **Финальное сохранение**: Сохранять только результаты игры и статистику в конце сессии
+- **WebSocket**: Использовать только для загрузки информации в начале и передачи результатов в конце партии
+- **Статистика в реальном времени**: Не требуется для локальной игры
+
+#### 20.18.3. Схема MongoDB
+```javascript
+// Коллекция: players
+{
+  _id: ObjectId,
+  playerKey: String, // "tg:123456" или "name:sha1hash"
+  telegramUserId: String, // опционально
+  displayName: String,
+  displayNameHistory: [String],
+  createdAt: Date,
+  lastPlayedAt: Date
+}
+
+// Коллекция: player_stats
+{
+  _id: ObjectId,
+  playerKey: String, // ссылка на players.playerKey
+  totals: {
+    gamesPlayed: Number,
+    wins: Number,
+    wordsGuessed: Number,
+    wordsPassed: Number,
+    totalScore: Number,
+    maxPointsPerGame: Number
+  },
+  perRoundSpwSamples: {
+    r0: [Number], // массив SPW значений для медианы
+    r1: [Number],
+    r2: [Number]
+  },
+  bestFirstRoundSpw: Number,
+  bestSecondRoundSpw: Number,
+  bestThirdRoundSpw: Number,
+  bestTurnByRound: {
+    r0: Number,
+    r1: Number,
+    r2: Number
+  },
+  maxPassedPerGame: Number,
+  bestWinStreak: Number,
+  currentWinStreak: Number,
+  medianSpwByRound: {
+    r0: Number,
+    r1: Number,
+    r2: Number
+  },
+  updatedAt: Date
+}
+
+// Коллекция: games
+{
+  _id: ObjectId,
+  gameId: String, // уникальный ID игры
+  startedAt: Date,
+  endedAt: Date,
+  players: [{
+    playerKey: String,
+    teamId: String,
+    totals: {
+      wordsGuessed: Number,
+      wordsPassed: Number,
+      totalScore: Number,
+      spwByRound: {r0: Number, r1: Number, r2: Number},
+      bestTurnByRound: {r0: Number, r1: Number, r2: Number}
+    }
+  }],
+  teams: [{
+    teamId: String,
+    name: String,
+    finalScore: Number
+  }],
+  winners: [String], // массив teamId победителей
+  facts: {
+    mostPassedWord: {word: String, count: Number},
+    hardestWord: {word: String, totalTimeSeconds: Number}
+  },
+  duration: {
+    roundDurations: {r0: Number, r1: Number, r2: Number},
+    totalGameDuration: Number
+  }
+}
+
+// Коллекция: words
+{
+  _id: ObjectId,
+  word: String, // в верхнем регистре
+  category: String,
+  level: String, // "обычный" или "повышенный"
+  createdAt: Date
+}
+
+// Коллекция: leaderboards (кэш)
+{
+  _id: ObjectId,
+  metric: String, // "spw_all", "best_streak", etc.
+  data: [{
+    playerKey: String,
+    displayName: String,
+    value: Number,
+    rank: Number
+  }],
+  updatedAt: Date
+}
+```
+
+#### 20.18.4. Индексы MongoDB
+```javascript
+// Индексы для players
+db.players.createIndex({ "playerKey": 1 }, { unique: true })
+db.players.createIndex({ "telegramUserId": 1 }, { unique: true, sparse: true })
+db.players.createIndex({ "lastPlayedAt": -1 })
+
+// Индексы для player_stats
+db.player_stats.createIndex({ "playerKey": 1 }, { unique: true })
+db.player_stats.createIndex({ "totals.gamesPlayed": -1 })
+db.player_stats.createIndex({ "bestWinStreak": -1 })
+db.player_stats.createIndex({ "medianSpwByRound.r0": 1 })
+db.player_stats.createIndex({ "medianSpwByRound.r1": 1 })
+db.player_stats.createIndex({ "medianSpwByRound.r2": 1 })
+
+// Индексы для games
+db.games.createIndex({ "gameId": 1 }, { unique: true })
+db.games.createIndex({ "startedAt": -1 })
+db.games.createIndex({ "endedAt": -1 })
+db.games.createIndex({ "players.playerKey": 1 })
+
+// Индексы для words
+db.words.createIndex({ "word": 1 }, { unique: true })
+db.words.createIndex({ "category": 1 })
+db.words.createIndex({ "level": 1 })
+db.words.createIndex({ "category": 1, "level": 1 })
+
+// Индексы для leaderboards
+db.leaderboards.createIndex({ "metric": 1 }, { unique: true })
+db.leaderboards.createIndex({ "updatedAt": -1 })
+```
+
+#### 20.18.5. План миграции
+1. **Установка MongoDB** и зависимостей (mongodb driver)
+2. **Создание MongoDB репозиториев** (MongoStatsRepository, MongoWordRepository)
+3. **Конфигурация** через переменные окружения для переключения между файловой системой и MongoDB
+4. **Скрипт миграции данных** из существующих файлов в MongoDB
+5. **Обновление тестов** для работы с MongoDB
+6. **Документация** по настройке и использованию
+
+#### 20.18.6. Конфигурация
+```javascript
+// .env файл
+// Пример для Docker с аутентификацией (admin / MyStrongPass2025!)
+MONGODB_URI=mongodb://admin:MyStrongPass2025!@localhost:27017/?authSource=admin
+MONGODB_DATABASE=hat_game
+USE_MONGODB=true
+STATS_STORAGE_TYPE=mongodb // или "filesystem"
+WORDS_STORAGE_TYPE=mongodb // или "filesystem"
+```
+
+#### 20.18.7. Docker заметки и совместимость версий
+- Если в volume уже есть данные и контейнер падает с ошибкой `featureCompatibilityVersion ... expected '6.0'|'6.3'|'7.0'` — это означает, что данные были созданы в MongoDB 8.0. Решения:
+  - Либо используйте образ `mongo:8.0`,
+  - Либо очистите volume (данные будут удалены) и поднимите `mongo:7.0`.
+- Рекомендуемый запуск:
+  - `docker volume create mongo_data`
+  - `docker run -d --name mongo -p 27017:27017 -e MONGO_INITDB_ROOT_USERNAME=admin -e MONGO_INITDB_ROOT_PASSWORD='MyStrongPass2025!' -e MONGO_INITDB_DATABASE=hat_game -v mongo_data:/data/db mongo:8.0`
+
+#### 20.18.8. Процедура миграции
+1. `npm run init:mongodb` — создаёт индексы
+2. `npm run migrate:mongodb` — переносит словарь, статистику игроков, лидерборды и JSONL‑события в MongoDB
+3. `npm start` — старт сервера; в логах видно, что используются `MongoDB` репозитории
+
 ### 20.19. Политика обновления глобальной статистики
 - Глобальная персональная статистика (включая `gamesPlayed`, `wins`, `maxPointsPerGame`, медианы SPW, серии и рекорды) обновляется строго один раз — при корректном завершении партии, когда определён победитель (или победители при ничьей).
 - В партиях без победителя (или незавершённых) глобальные метрики не изменяются.

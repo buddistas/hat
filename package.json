@@ -9,10 +9,15 @@
     "validate:words": "node src/utils/validateWords.js",
     "stats:words": "node scripts/generate_dictionary_stats.js",
     "test": "jest",
-    "test:integration": "jest tests/integration/full_game_websocket.test.js"
+    "test:integration": "jest tests/integration/full_game_websocket.test.js",
+    "migrate:mongodb": "node scripts/migrate_to_mongodb.js",
+    "init:mongodb": "node scripts/init_mongodb.js",
+    "setup:mongodb": "npm run init:mongodb && npm run migrate:mongodb"
   },
   "dependencies": {
+    "dotenv": "^17.2.2",
     "express": "^4.18.2",
+    "mongodb": "^6.20.0",
     "ws": "^8.14.2"
   },
   "keywords": [
