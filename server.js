@@ -53,8 +53,16 @@ app.get('/api/stats/leaderboard/:metric', (req, res) => {
 });
 
 app.get('/api/stats/session/:gameId', (req, res) => {
+  console.log(`API /api/stats/session/${req.params.gameId} - запрос статистики сессии`);
   const snap = statsService.getSessionSnapshot();
-  if (!snap || snap.gameId !== req.params.gameId) return res.status(404).json({ error: 'not_found' });
+  console.log('API - session snapshot:', snap);
+  
+  if (!snap || snap.gameId !== req.params.gameId) {
+    console.log(`API - сессия не найдена. Запрошенный gameId: ${req.params.gameId}, текущий: ${snap?.gameId || 'null'}`);
+    return res.status(404).json({ error: 'not_found' });
+  }
+  
+  console.log('API - возвращаем данные сессии');
   res.json(snap);
 });
 
