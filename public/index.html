@@ -498,6 +498,179 @@
             }
         }
 
+        /* Стили для экрана статистики сессии */
+        .session-stats-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .stats-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .stats-section h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 1.1em;
+            text-align: center;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .stat-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .facts-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .fact-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .fact-label {
+            font-size: 0.9em;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .fact-value {
+            font-size: 1em;
+            font-weight: bold;
+            color: #333;
+            text-align: right;
+            max-width: 60%;
+            word-break: break-word;
+        }
+
+        .words-stats-container {
+            margin-top: 15px;
+        }
+
+        .words-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+        }
+
+        .words-stat-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .words-stat-label {
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .words-stat-value {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        /* Адаптивность для экрана статистики */
+        @media (max-width: 768px) {
+            .session-stats-container {
+                padding: 0 10px;
+            }
+
+            .stats-section {
+                padding: 15px;
+                margin: 15px 0;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                gap: 10px;
+            }
+
+            .words-stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+                gap: 10px;
+            }
+
+            .fact-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .fact-value {
+                max-width: 100%;
+                text-align: left;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .words-stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .stat-item,
+            .words-stat-item {
+                padding: 10px;
+            }
+
+            .stat-label,
+            .words-stat-label {
+                font-size: 0.75em;
+            }
+
+            .stat-value {
+                font-size: 1.1em;
+            }
+
+            .words-stat-value {
+                font-size: 1.2em;
+            }
+        }
+
         .team-item {
             background: rgba(255,255,255,0.1);
             border-radius: 10px;
@@ -1287,6 +1460,7 @@
                 <div class="stats-navigation">
                     <button class="btn btn-active" onclick="buttonClick(showTeamStats)">Команды</button>
                     <button class="btn" onclick="buttonClick(showPlayerStats)">Игроки</button>
+                    <button class="btn" onclick="buttonClick(showSessionStats)">Статистика</button>
                 </div>
                 
                 <!-- Таблица результатов команд -->
@@ -1319,6 +1493,7 @@
                 <div class="stats-navigation">
                     <button class="btn" onclick="buttonClick(showTeamStats)">Команды</button>
                     <button class="btn btn-active" onclick="buttonClick(showPlayerStats)">Игроки</button>
+                    <button class="btn" onclick="buttonClick(showSessionStats)">Статистика</button>
                 </div>
                 
                 <!-- Таблица результатов игроков -->
@@ -1338,6 +1513,88 @@
                 <button class="btn" onclick="buttonClick(newGame)">Новая игра</button>
             </div>
         </div>
+
+        <!-- Экран статистики игровой сессии -->
+        <div class="screen" id="sessionStatsScreen">
+            <div class="results">
+                <h2>Статистика сессии</h2>
+                
+                <!-- Навигация между экранами статистики -->
+                <div class="stats-navigation">
+                    <button class="btn" onclick="buttonClick(showTeamStats)">Команды</button>
+                    <button class="btn" onclick="buttonClick(showPlayerStats)">Игроки</button>
+                    <button class="btn btn-active" onclick="buttonClick(showSessionStats)">Статистика</button>
+                </div>
+                
+                <!-- Основная статистика -->
+                <div class="session-stats-container">
+                    <!-- Время игры -->
+                    <div class="stats-section">
+                        <h3>⏱️ Время игры</h3>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-label">Общее время</div>
+                                <div class="stat-value" id="totalGameDuration">—</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Раунд 1</div>
+                                <div class="stat-value" id="round1Duration">—</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Раунд 2</div>
+                                <div class="stat-value" id="round2Duration">—</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Раунд 3</div>
+                                <div class="stat-value" id="round3Duration">—</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Интересные факты -->
+                    <div class="stats-section">
+                        <h3>📊 Интересные факты</h3>
+                        <div class="facts-container">
+                            <div class="fact-item" id="mostPassedWordFact">
+                                <div class="fact-label">Самое часто пропускаемое слово:</div>
+                                <div class="fact-value">—</div>
+                            </div>
+                            <div class="fact-item" id="hardestWordFact">
+                                <div class="fact-label">Самое сложное слово:</div>
+                                <div class="fact-value">—</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Детальная статистика по словам -->
+                    <div class="stats-section">
+                        <h3>📝 Статистика по словам</h3>
+                        <div class="words-stats-container">
+                            <div class="words-stats-grid">
+                                <div class="words-stat-item">
+                                    <div class="words-stat-label">Всего слов в игре</div>
+                                    <div class="words-stat-value" id="totalWordsCount">—</div>
+                                </div>
+                                <div class="words-stat-item">
+                                    <div class="words-stat-label">Угадано слов</div>
+                                    <div class="words-stat-value" id="guessedWordsCount">—</div>
+                                </div>
+                                <div class="words-stat-item">
+                                    <div class="words-stat-label">Пропущено слов</div>
+                                    <div class="words-stat-value" id="passedWordsCount">—</div>
+                                </div>
+                                <div class="words-stat-item">
+                                    <div class="words-stat-label">Процент угаданных</div>
+                                    <div class="words-stat-value" id="guessedPercentage">—</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn" onclick="buttonClick(newGame)">Новая игра</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1349,6 +1606,9 @@
             roundDuration: 30,
             wordsCount: 100
         };
+
+        // Локальная статистика игровой сессии
+        let sessionStats = null;
 
         // Звуковая система
         let audioContext;
@@ -1829,6 +2089,10 @@
                     // message.data.currentRound содержит номер завершенного раунда (1, 2, 3)
                     gameState.scores = message.data.scores;
                     
+                    // Обновляем локальную статистику - раунд завершен
+                    // message.data.currentRound приходит как 1,2,3 → конвертируем в индекс 0,1,2
+                    onRoundEnded(Math.max(0, (message.data.currentRound || 1) - 1));
+                    
                     // Если таймер еще работает, значит раунд завершился по исчерпанию слов
                     // В этом случае нужно правильно вычислить перенесенное время
                     if (timerState.isRunning) {
@@ -1855,6 +2119,10 @@
                     console.log('Счета команд в game_ended:', message.data.scores);
                     console.log('Статистика по раундам в game_ended:', message.data.teamStatsByRound);
                     gameState = message.data;
+                    
+                    // Обновляем локальную статистику - игра завершена
+                    onGameEnded();
+                    
                     showResults();
                 } else if (message.type === 'handoff_screen') {
                     console.log('Получено событие handoff_screen:', message.data);
@@ -2175,7 +2443,8 @@
             // Очищаем перенесенное время при начале новой игры
             clearCarriedTime();
             
-            
+            // Инициализируем локальную статистику сессии
+            initSessionStats();
             
             sendEvent('start_game', {
                 players: gameSetup.players,
@@ -2195,11 +2464,17 @@
 
         // Функции для экранов правил
         function startFirstRound() {
+            // Обновляем локальную статистику - раунд 0 начат
+            onRoundStarted(0);
+            
             // Показываем экран представления первого игрока
             showPlayerIntroScreen();
         }
 
         function startSecondRound() {
+            // Обновляем локальную статистику - раунд 1 начат
+            onRoundStarted(1);
+            
             // Переходим к следующему раунду
             sendEvent('continue_round');
             console.log('startSecondRound - ждем обновления game_state для показа экрана представления игрока');
@@ -2207,6 +2482,9 @@
         }
 
         function startThirdRound() {
+            // Обновляем локальную статистику - раунд 2 начат
+            onRoundStarted(2);
+            
             // Переходим к следующему раунду
             sendEvent('continue_round');
             console.log('startThirdRound - ждем обновления game_state для показа экрана представления игрока');
@@ -2219,6 +2497,10 @@
             if (currentTeam) {
                 // Воспроизводим звук угадывания
                 playSound('wordGuessed');
+                
+                // Обновляем локальную статистику
+                onWordGuessed();
+                
                 sendEvent('word_guessed', { teamId: currentTeam.id });
             }
         }
@@ -2228,6 +2510,10 @@
             if (currentTeam) {
                 // Воспроизводим звук пропуска
                 playSound('wordPassed');
+                
+                // Обновляем локальную статистику
+                onWordPassed();
+                
                 sendEvent('word_passed', { teamId: currentTeam.id });
             }
         }
@@ -2352,6 +2638,9 @@
             const currentWord = document.getElementById('currentWord');
             if (gameState.currentWord) {
                 currentWord.textContent = gameState.currentWord;
+                
+                // Обновляем локальную статистику - слово показано
+                onWordShown(gameState.currentWord);
                 // Debug-подсветка слов повышенной сложности
                 if (window.__hatDebug && window.__hatDebug.highlightElevated) {
                     // Проверяем уровень сложности из gameState или используем fallback
@@ -2583,6 +2872,143 @@
             showScreen('playerResultsScreen');
         }
 
+        function showSessionStats() {
+            // Обновляем навигацию
+            document.querySelectorAll('.stats-navigation .btn').forEach(btn => {
+                btn.classList.remove('btn-active');
+            });
+            document.querySelectorAll('.stats-navigation .btn')[2].classList.add('btn-active');
+            
+            // Загружаем данные статистики сессии
+            loadSessionStats();
+            
+            // Показываем экран статистики сессии
+            showScreen('sessionStatsScreen');
+        }
+
+        function loadSessionStats() {
+            console.log('loadSessionStats - используем локальные данные');
+            console.log('loadSessionStats - sessionStats:', sessionStats);
+            
+            // Пересчитываем факты перед показом (на случай, если экран открыт до onGameEnded)
+            if (sessionStats) {
+                calculateSessionFacts();
+            }
+            // Используем локальные данные статистики сессии
+            displaySessionStats(sessionStats);
+        }
+
+        function displaySessionStats(stats) {
+            // Отображаем время игры
+            displayGameDuration(stats.duration);
+            
+            // Отображаем интересные факты
+            displaySessionFacts(stats.facts);
+            
+            // Отображаем статистику по словам
+            displayWordsStats(stats);
+        }
+
+        function displayGameDuration(duration) {
+            const totalDuration = document.getElementById('totalGameDuration');
+            const round1Duration = document.getElementById('round1Duration');
+            const round2Duration = document.getElementById('round2Duration');
+            const round3Duration = document.getElementById('round3Duration');
+            
+            if (duration) {
+                const r0 = duration.roundDurations?.[0] || 0;
+                const r1 = duration.roundDurations?.[1] || 0;
+                const r2 = duration.roundDurations?.[2] || 0;
+                const liveTotal = (duration.totalGameDuration && duration.totalGameDuration > 0)
+                  ? duration.totalGameDuration
+                  : r0 + r1 + r2;
+                totalDuration.textContent = formatDuration(liveTotal);
+                round1Duration.textContent = formatDuration(r0);
+                round2Duration.textContent = formatDuration(r1);
+                round3Duration.textContent = formatDuration(r2);
+            } else {
+                totalDuration.textContent = '—';
+                round1Duration.textContent = '—';
+                round2Duration.textContent = '—';
+                round3Duration.textContent = '—';
+            }
+        }
+
+        function displaySessionFacts(facts) {
+            const mostPassedWordFact = document.getElementById('mostPassedWordFact');
+            const hardestWordFact = document.getElementById('hardestWordFact');
+            
+            // Самое часто пропускаемое слово
+            if (facts && facts.mostPassedWord && facts.mostPassedWord.word) {
+                const factValue = mostPassedWordFact.querySelector('.fact-value');
+                factValue.textContent = `"${facts.mostPassedWord.word}" (${facts.mostPassedWord.count} раз)`;
+            } else {
+                const factValue = mostPassedWordFact.querySelector('.fact-value');
+                factValue.textContent = '—';
+            }
+            
+            // Самое сложное слово
+            if (facts && facts.hardestWord && facts.hardestWord.word) {
+                const factValue = hardestWordFact.querySelector('.fact-value');
+                factValue.textContent = `"${facts.hardestWord.word}" (${formatDuration(facts.hardestWord.totalTimeSeconds || 0)})`;
+            } else {
+                const factValue = hardestWordFact.querySelector('.fact-value');
+                factValue.textContent = '—';
+            }
+        }
+
+        function displayWordsStats(stats) {
+            const totalWordsCount = document.getElementById('totalWordsCount');
+            const guessedWordsCount = document.getElementById('guessedWordsCount');
+            const passedWordsCount = document.getElementById('passedWordsCount');
+            const guessedPercentage = document.getElementById('guessedPercentage');
+            
+            // Подсчитываем статистику из gameState
+            let totalWords = 0;
+            let guessedWords = 0;
+            let passedWords = 0;
+            
+            // Угаданные слова
+            if (gameState.usedWords) {
+                guessedWords = gameState.usedWords.length;
+                totalWords += guessedWords;
+            }
+            
+            // Пропущенные слова
+            if (gameState.passedWords) {
+                passedWords = gameState.passedWords.length;
+                totalWords += passedWords;
+            }
+            
+            totalWordsCount.textContent = totalWords;
+            guessedWordsCount.textContent = guessedWords;
+            passedWordsCount.textContent = passedWords;
+            
+            // Вычисляем процент угаданных
+            const percentage = totalWords > 0 ? Math.round((guessedWords / totalWords) * 100) : 0;
+            guessedPercentage.textContent = `${percentage}%`;
+        }
+
+        function displaySessionStatsFallback() {
+            console.log('displaySessionStatsFallback - используем локальные данные');
+            
+            // Используем локальные данные статистики
+            displaySessionStats(sessionStats);
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds || seconds === 0) return '0 сек';
+            
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            
+            if (minutes > 0) {
+                return `${minutes}м ${remainingSeconds}с`;
+            } else {
+                return `${remainingSeconds} сек`;
+            }
+        }
+
         function getScoreClass(score) {
             if (score > 0) return 'score-positive';
             if (score < 0) return 'score-negative';
@@ -2594,6 +3020,179 @@
                 screen.classList.remove('active');
             });
             document.getElementById(screenId).classList.add('active');
+        }
+
+        // Функции для работы с локальной статистикой сессии
+        function finalizeCurrentWordDisplay() {
+            if (!sessionStats) return;
+            if (sessionStats._currentWord && sessionStats._wordShownAt) {
+                const word = sessionStats._currentWord;
+                const displayTime = (Date.now() - sessionStats._wordShownAt) / 1000; // sec
+                sessionStats.wordTracking.wordDisplayTime[word] =
+                    (sessionStats.wordTracking.wordDisplayTime[word] || 0) + displayTime;
+                sessionStats._currentWord = null;
+                sessionStats._wordShownAt = null;
+                console.log('Финализировано текущее слово:', word, 'добавлено', displayTime, 'сек');
+            }
+        }
+        function initSessionStats() {
+            sessionStats = {
+                gameId: gameState.gameId || `game-${Date.now()}`,
+                startedAt: Date.now(),
+                endedAt: null,
+                duration: {
+                    roundDurations: { 0: 0, 1: 0, 2: 0 },
+                    totalGameDuration: 0
+                },
+                facts: {
+                    mostPassedWord: null,
+                    hardestWord: null
+                },
+                wordTracking: {
+                    passedWords: {},
+                    wordDisplayTime: {}
+                },
+                _currentWord: null,
+                _wordShownAt: null,
+                _roundStartTime: null,
+                _gameStartTime: Date.now()
+            };
+            console.log('Инициализирована локальная статистика сессии:', sessionStats);
+        }
+
+        function onWordShown(word) {
+            if (!sessionStats) return;
+            
+            sessionStats._currentWord = word;
+            sessionStats._wordShownAt = Date.now();
+            console.log('Слово показано:', word, 'время:', sessionStats._wordShownAt);
+        }
+
+        function onWordGuessed() {
+            if (!sessionStats || !sessionStats._currentWord || !sessionStats._wordShownAt) return;
+            
+            const word = sessionStats._currentWord;
+            const displayTime = (Date.now() - sessionStats._wordShownAt) / 1000; // в секундах
+            
+            // Обновляем время показа слова (накапливаем для повторных показов)
+            sessionStats.wordTracking.wordDisplayTime[word] = 
+                (sessionStats.wordTracking.wordDisplayTime[word] || 0) + displayTime;
+            
+            console.log('Слово угадано:', word, 'время показа:', displayTime, 'сек');
+            
+            // Сбрасываем текущее слово
+            sessionStats._currentWord = null;
+            sessionStats._wordShownAt = null;
+        }
+
+        function onWordPassed() {
+            if (!sessionStats || !sessionStats._currentWord) return;
+            
+            const word = sessionStats._currentWord;
+            
+            // Увеличиваем счетчик пропусков
+            sessionStats.wordTracking.passedWords[word] = 
+                (sessionStats.wordTracking.passedWords[word] || 0) + 1;
+            
+            console.log('Слово пропущено:', word, 'количество пропусков:', sessionStats.wordTracking.passedWords[word]);
+            
+            // Сбрасываем текущее слово
+            sessionStats._currentWord = null;
+            sessionStats._wordShownAt = null;
+        }
+
+        function onRoundStarted(round) {
+            if (!sessionStats) return;
+            
+            sessionStats._roundStartTime = Date.now();
+            console.log('Раунд начат:', round, 'время:', sessionStats._roundStartTime);
+        }
+
+        function onRoundEnded(round) {
+            if (!sessionStats) return;
+            
+            // Финализируем текущее слово, если шло в момент завершения раунда
+            finalizeCurrentWordDisplay();
+            
+            if (!sessionStats._roundStartTime) return;
+
+            const roundDuration = (Date.now() - sessionStats._roundStartTime) / 1000; // в секундах
+            sessionStats.duration.roundDurations[round] = roundDuration;
+            
+            console.log('Раунд завершен:', round, 'продолжительность:', roundDuration, 'сек');
+            
+            sessionStats._roundStartTime = null;
+        }
+
+        function onGameEnded() {
+            if (!sessionStats) return;
+            
+            // Финализируем текущее слово перед расчетом
+            if (sessionStats._currentWord && sessionStats._wordShownAt) {
+                const word = sessionStats._currentWord;
+                const displayTime = (Date.now() - sessionStats._wordShownAt) / 1000;
+                sessionStats.wordTracking.wordDisplayTime[word] =
+                    (sessionStats.wordTracking.wordDisplayTime[word] || 0) + displayTime;
+                sessionStats._currentWord = null;
+                sessionStats._wordShownAt = null;
+                console.log('Финализировано слово при завершении игры:', word, 'добавлено', displayTime, 'сек');
+            }
+
+            // Финализируем текущее слово перед расчетом
+            finalizeCurrentWordDisplay();
+
+            sessionStats.endedAt = Date.now();
+            
+            // Рассчитываем общую продолжительность
+            sessionStats.duration.totalGameDuration = 
+                Object.values(sessionStats.duration.roundDurations).reduce((sum, duration) => sum + duration, 0);
+            
+            // Рассчитываем факты
+            calculateSessionFacts();
+            
+            console.log('Игра завершена, статистика:', sessionStats);
+        }
+
+        function calculateSessionFacts() {
+            if (!sessionStats) return;
+            
+            // Самое часто пропускаемое слово
+            const passedWords = sessionStats.wordTracking.passedWords;
+            if (Object.keys(passedWords).length > 0) {
+                let mostPassedWord = null;
+                let maxCount = 0;
+                
+                Object.entries(passedWords).forEach(([word, count]) => {
+                    if (count > maxCount) {
+                        maxCount = count;
+                        mostPassedWord = word;
+                    }
+                });
+                
+                if (mostPassedWord) {
+                    sessionStats.facts.mostPassedWord = { word: mostPassedWord, count: maxCount };
+                }
+            }
+            
+            // Самое сложное слово (на которое потратили больше всего времени)
+            const wordDisplayTime = sessionStats.wordTracking.wordDisplayTime;
+            if (Object.keys(wordDisplayTime).length > 0) {
+                let hardestWord = null;
+                let maxTime = 0;
+                
+                Object.entries(wordDisplayTime).forEach(([word, time]) => {
+                    if (time > maxTime) {
+                        maxTime = time;
+                        hardestWord = word;
+                    }
+                });
+                
+                if (hardestWord) {
+                    sessionStats.facts.hardestWord = { word: hardestWord, totalTimeSeconds: maxTime };
+                }
+            }
+            
+            console.log('Факты сессии рассчитаны:', sessionStats.facts);
         }
 
         // Функции для работы с переносом времени в localStorage
@@ -2655,6 +3254,9 @@
             // Устанавливаем флаг, что раунд обработан
             timerState.roundEndProcessed = true;
             
+            // Финализируем текущее слово, если оно отображается
+            finalizeCurrentWordDisplay();
+
             // Останавливаем таймер
             stopTimer();
             
@@ -2788,6 +3390,10 @@
             if (timerState.remainingTime <= 0) {
                 timerState.isRunning = false;
                 playSound('endTurn');
+                // Финализируем текущее слово ровно в момент истечения таймера
+                if (typeof finalizeCurrentWordDisplay === 'function') {
+                    finalizeCurrentWordDisplay();
+                }
                 const carriedTime = 0;
                 saveCarriedTime(carriedTime);
                 sendEvent('time_up', { carriedTime: carriedTime });

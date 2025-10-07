@@ -344,7 +344,7 @@ sessionStats: {
     longestStreak?: {playerId:string, length:number}, 
     fastestGuess?: {playerId:string, ms:number},
     mostPassedWord?: {word:string, count:number},
-    hardestWord?: {word:string, totalTimeMs:number}
+    hardestWord?: {word:string, totalTimeMs:number} // формируется из sessionStats.wordTracking.wordDisplayTime; учитывается и последнее слово раунда благодаря finalizeCurrentWordDisplay()
   },
   // Новые метрики сессии
   wordTracking: {

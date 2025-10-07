@@ -54,6 +54,82 @@
 }
 ```
 
+## Локальная статистика игровой сессии
+
+### Обзор
+
+Статистика игровой сессии собирается **локально в браузере** и не зависит от сервера. Это обеспечивает полную автономность и мгновенное отображение данных без сетевых запросов.
+
+### Архитектура
+
+#### Хранение данных
+- **Переменная**: `sessionStats` в JavaScript
+- **Жизненный цикл**: Создается при начале игры, обновляется во время игры, очищается при новой игре
+- **Независимость**: Полностью автономная система без серверных зависимостей
+
+#### Функции сбора данных
+```javascript
+// Инициализация при начале игры
+initSessionStats()
+
+// Сбор данных во время игры
+onWordShown(word)      // Фиксация времени показа слова
+onWordGuessed()        // Обновление времени при угадывании
+onWordPassed()         // Увеличение счетчика пропусков
+onRoundStarted(round)  // Начало отсчета времени раунда
+onRoundEnded(round)    // Фиксация продолжительности раунда
+onGameEnded()          // Расчет фактов и общей статистики
+```
+
+#### Финализация последнего слова
+- Введена функция `finalizeCurrentWordDisplay()` — суммирует время для `_currentWord` при завершении хода/раунда/игры.
+- Точки вызова: `onRoundEnded`, `endRoundByWordsExhausted`, `timerLoop` (при `remainingTime <= 0`), `onGameEnded`.
+- Это гарантирует, что слово, оставшееся на экране в момент завершения, учитывается в `wordDisplayTime` и попадает в «Самое сложное слово».
+
+#### Интеграция с игровыми событиями
+- **Показ слов**: `updateGameDisplay()` → `onWordShown()`
+- **Угадывание**: `wordGuessed()` → `onWordGuessed()`
+- **Пропуск**: `wordPassed()` → `onWordPassed()`
+- **Начало раундов**: `startFirstRound()`, `startSecondRound()`, `startThirdRound()` → `onRoundStarted()`
+- **Завершение раундов**: WebSocket `round_completed` → `onRoundEnded()`
+- **Завершение игры**: WebSocket `game_ended` → `onGameEnded()`
+
+### Структура данных
+```javascript
+let sessionStats = {
+  gameId: string,
+  startedAt: number,
+  endedAt: number,
+  duration: {
+    roundDurations: { 0: number, 1: number, 2: number },
+    totalGameDuration: number
+  },
+  facts: {
+    mostPassedWord: { word: string, count: number },
+    hardestWord: { word: string, totalTimeSeconds: number }
+  },
+  wordTracking: {
+    passedWords: { [word: string]: number },
+    wordDisplayTime: { [word: string]: number }
+  },
+  // Временные переменные для отслеживания
+  _currentWord: string | null,
+  _wordShownAt: number | null,
+  _roundStartTime: number | null,
+  _gameStartTime: number
+}
+```
+
+### Особенности
+- **Автономность**: Работает без интернета и сервера
+- **Мгновенность**: Данные доступны сразу после завершения игры
+- **Точность**: Сбор данных в реальном времени во время игры
+- **Производительность**: Минимальное влияние на производительность игры
+
+### Отображение времени (live total)
+- Пока игра не завершена, «Общее время» на экране статистики равно сумме `roundDurations[0..2]`.
+- После завершения игры используется `totalGameDuration`.
+
 ## Реализация переноса времени на клиенте
 
 ### Обзор
