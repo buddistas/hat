@@ -448,30 +448,6 @@
                         </div>
                     </div>
 
-                    <!-- Детальная статистика по словам -->
-                    <div class="stats-section">
-                        <h3>📝 Статистика по словам</h3>
-                        <div class="words-stats-container">
-                            <div class="words-stats-grid">
-                                <div class="words-stat-item">
-                                    <div class="words-stat-label">Всего слов в игре</div>
-                                    <div class="words-stat-value" id="totalWordsCount">—</div>
-                                </div>
-                                <div class="words-stat-item">
-                                    <div class="words-stat-label">Угадано слов</div>
-                                    <div class="words-stat-value" id="guessedWordsCount">—</div>
-                                </div>
-                                <div class="words-stat-item">
-                                    <div class="words-stat-label">Пропущено слов</div>
-                                    <div class="words-stat-value" id="passedWordsCount">—</div>
-                                </div>
-                                <div class="words-stat-item">
-                                    <div class="words-stat-label">Процент угаданных</div>
-                                    <div class="words-stat-value" id="guessedPercentage">—</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
                 
                 <button class="btn" onclick="buttonClick(newGame)">Новая игра</button>
@@ -1164,7 +1140,8 @@
             'Бренды и торговые марки',
             'Музыка',
             'Эмоции и черты характера',
-            'Наука и технологии'
+            'Наука и технологии',
+            'Медиа'
         ];
 
         function renderCategories() {
@@ -1786,9 +1763,6 @@
             
             // Отображаем интересные факты
             displaySessionFacts(stats.facts);
-            
-            // Отображаем статистику по словам
-            displayWordsStats(stats);
         }
 
         function displayGameDuration(duration) {
@@ -1839,37 +1813,6 @@
             }
         }
 
-        function displayWordsStats(stats) {
-            const totalWordsCount = document.getElementById('totalWordsCount');
-            const guessedWordsCount = document.getElementById('guessedWordsCount');
-            const passedWordsCount = document.getElementById('passedWordsCount');
-            const guessedPercentage = document.getElementById('guessedPercentage');
-            
-            // Подсчитываем статистику из gameState
-            let totalWords = 0;
-            let guessedWords = 0;
-            let passedWords = 0;
-            
-            // Угаданные слова
-            if (gameState.usedWords) {
-                guessedWords = gameState.usedWords.length;
-                totalWords += guessedWords;
-            }
-            
-            // Пропущенные слова
-            if (gameState.passedWords) {
-                passedWords = gameState.passedWords.length;
-                totalWords += passedWords;
-            }
-            
-            totalWordsCount.textContent = totalWords;
-            guessedWordsCount.textContent = guessedWords;
-            passedWordsCount.textContent = passedWords;
-            
-            // Вычисляем процент угаданных
-            const percentage = totalWords > 0 ? Math.round((guessedWords / totalWords) * 100) : 0;
-            guessedPercentage.textContent = `${percentage}%`;
-        }
 
         function displaySessionStatsFallback() {
             console.log('displaySessionStatsFallback - используем локальные данные');
