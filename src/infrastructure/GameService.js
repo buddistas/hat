@@ -281,6 +281,109 @@ class GameService {
   }
 
   /**
+   * Получает статус игры для Telegram-бота
+   */
+  async getGameStatus() {
+    const gameState = this.getGameState();
+    return {
+      isActive: gameState && gameState.players && gameState.players.length > 0,
+      playersCount: gameState ? gameState.players.length : 0,
+      maxPlayers: gameState ? gameState.maxPlayers || 20 : 20,
+      gameId: gameState ? gameState.gameId : null,
+      currentRound: gameState ? gameState.currentRound : null,
+      currentPlayer: gameState ? gameState.currentPlayer : null
+    };
+  }
+
+  /**
+   * Запускает новую игру
+   */
+  async startNewGame() {
+    if (this.game && this.game.players && this.game.players.length > 0) {
+      throw new Error('Game is already active');
+    }
+    
+    const gameId = `game-${Date.now()}`;
+    this.game = {
+      gameId,
+      players: [],
+      teams: [],
+      currentRound: 0,
+      currentPlayer: null,
+      currentWord: null,
+      availableWords: [],
+      usedWords: [],
+      teamStatsByRound: { 0: {}, 1: {}, 2: {} },
+      playerStats: {},
+      playerCarriedTime: {},
+      maxPlayers: 20
+    };
+    
+    return gameId;
+  }
+
+  /**
+   * Добавляет игрока в игру
+   */
+  async addPlayer(username, displayName) {
+    const gameState = this.getGameState();
+    if (!gameState) {
+      throw new Error('No active game');
+    }
+    
+    if (gameState.players.length >= (gameState.maxPlayers || 20)) {
+      throw new Error('Game is full');
+    }
+    
+    // Проверяем, не участвует ли уже игрок
+    const existingPlayer = gameState.players.find(p => p.id === username);
+    if (existingPlayer) {
+      return false; // Игрок уже в игре
+    }
+    
+    const player = {
+      id: username,
+      name: displayName || username,
+      teamId: null
+    };
+    
+    gameState.players.push(player);
+    return true;
+  }
+
+  /**
+   * Удаляет игрока из игры
+   */
+  async removePlayer(username) {
+    const gameState = this.getGameState();
+    if (!gameState) {
+      throw new Error('No active game');
+    }
+    
+    const playerIndex = gameState.players.findIndex(p => p.id === username);
+    if (playerIndex === -1) {
+      return false; // Игрок не найден
+    }
+    
+    gameState.players.splice(playerIndex, 1);
+    return true;
+  }
+
+  /**
+   * Завершает игру
+   */
+  async endGame() {
+    const gameState = this.getGameState();
+    if (!gameState) {
+      throw new Error('No active game');
+    }
+    
+    // Очищаем состояние игры
+    this.game = null;
+    return true;
+  }
+
+  /**
    * Очищает игру
    */
   async clearGame() {

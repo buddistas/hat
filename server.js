@@ -8,8 +8,16 @@ const WebSocketHandler = require('./src/infrastructure/WebSocketHandler');
 const StatsService = require('./src/infrastructure/StatsService');
 const mongoConnection = require('./src/infrastructure/MongoConnection');
 
+// Импорт Telegram-бота
+const TelegramBotService = require('./src/telegram/TelegramBot');
+const TelegramApiService = require('./src/telegram/TelegramApi');
+const telegramConfig = require('./telegram-config');
+
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+// Middleware для парсинга JSON
+app.use(express.json());
 
 // Раздача статических файлов
 app.use(express.static('public'));
@@ -37,6 +45,36 @@ gameService.statsService = statsService;
 
 // Устанавливаем gameService в WebSocketHandler
 webSocketHandler.gameService = gameService;
+
+// Инициализация Telegram-бота
+let telegramBot = null;
+let telegramApi = null;
+
+if (telegramConfig.TELEGRAM_BOT_TOKEN) {
+  try {
+    console.log('🔄 Инициализация Telegram-бота...');
+    telegramBot = new TelegramBotService(telegramConfig.TELEGRAM_BOT_TOKEN, gameService, statsService);
+    telegramApi = new TelegramApiService(gameService, statsService);
+    
+    // Подключаем API роуты для Telegram-бота
+    app.use('/', telegramApi.getRouter());
+    
+    console.log('🤖 Telegram-бот инициализирован успешно');
+  } catch (error) {
+    console.error('❌ Ошибка инициализации Telegram-бота:', error.message);
+    console.log('⚠️ Сервер будет работать без Telegram-бота');
+    
+    // Создаем API без бота для тестирования
+    telegramApi = new TelegramApiService(gameService, statsService);
+    app.use('/', telegramApi.getRouter());
+  }
+} else {
+  console.log('⚠️ TELEGRAM_BOT_TOKEN не установлен, Telegram-бот отключен');
+  
+  // Создаем API без бота для тестирования
+  telegramApi = new TelegramApiService(gameService, statsService);
+  app.use('/', telegramApi.getRouter());
+}
 
 // Выводим информацию о конфигурации
 console.log('🔧 Конфигурация репозиториев:', repositoryFactory.getConfigurationInfo());
@@ -69,6 +107,16 @@ app.get('/api/stats/session/:gameId', (req, res) => {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('Завершение работы сервера...');
+  
+  // Останавливаем Telegram-бота
+  if (telegramBot) {
+    try {
+      telegramBot.stopPolling();
+      console.log('Telegram-бот остановлен');
+    } catch (error) {
+      console.error('Ошибка остановки Telegram-бота:', error.message);
+    }
+  }
   
   // Закрываем WebSocket соединения
   webSocketHandler.close();

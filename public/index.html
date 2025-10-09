@@ -2342,11 +2342,135 @@
             }
         });
 
+        // Функция для обработки автоматического присоединения через Telegram-бота
+        function handleAutoJoin() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const autoJoin = urlParams.get('autoJoin');
+            const username = urlParams.get('username');
+            const gameId = urlParams.get('gameId');
+            
+            if (autoJoin === 'true' && username) {
+                console.log(`Автоматическое присоединение: username=${username}, gameId=${gameId}`);
+                
+                // Ждем подключения WebSocket
+                const checkConnection = () => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        // Отправляем запрос на автоматическое присоединение
+                        const params = new URLSearchParams({
+                            username: username,
+                            gameId: gameId || ''
+                        });
+                        
+                        fetch(`/api/game/auto-join?${params}`, {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                console.log('Успешно присоединились к игре:', data);
+                                
+                                // Если игрок уже был в игре, показываем соответствующее сообщение
+                                if (data.alreadyJoined) {
+                                    showNotification('Вы уже участвуете в игре!', 'info');
+                                } else {
+                                    showNotification('Вы успешно присоединились к игре!', 'success');
+                                }
+                                
+                                // Очищаем URL параметры
+                                const newUrl = window.location.pathname;
+                                window.history.replaceState({}, document.title, newUrl);
+                            } else {
+                                console.error('Ошибка присоединения к игре:', data.error);
+                                showNotification(`Ошибка: ${data.error}`, 'error');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Ошибка при запросе присоединения:', error);
+                            showNotification('Ошибка при присоединении к игре', 'error');
+                        });
+                    } else {
+                        // Повторяем проверку через 100мс
+                        setTimeout(checkConnection, 100);
+                    }
+                };
+                
+                checkConnection();
+            }
+        }
+        
+        // Функция для показа уведомлений
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 8px;
+                color: white;
+                font-weight: bold;
+                z-index: 10000;
+                max-width: 300px;
+                word-wrap: break-word;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                animation: slideIn 0.3s ease-out;
+            `;
+            
+            // Стили для разных типов уведомлений
+            switch (type) {
+                case 'success':
+                    notification.style.backgroundColor = '#4CAF50';
+                    break;
+                case 'error':
+                    notification.style.backgroundColor = '#f44336';
+                    break;
+                case 'warning':
+                    notification.style.backgroundColor = '#ff9800';
+                    break;
+                default:
+                    notification.style.backgroundColor = '#2196F3';
+            }
+            
+            document.body.appendChild(notification);
+            
+            // Автоматически удаляем уведомление через 5 секунд
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-in';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 5000);
+        }
+        
+        // CSS анимации для уведомлений
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
         // Инициализация при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {
             connectWebSocket();
             // Инициализируем контролы сложности (без восстановления из localStorage)
             setTimeout(initDifficultyControls, 100);
+            
+            // Обработка автоматического присоединения через Telegram-бота
+            handleAutoJoin();
             
             // Debug-панель: подсветка слов повышенной сложности
             (function initDebugPanel(){
