@@ -1,0 +1,41 @@
+# Node & package managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Build / coverage / temp
+dist/
+build/
+coverage/
+.tmp/
+.temp/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Env files
+.env
+.env.*.local
+*.local
+
+# Project-specific generated data
+# Backups of words should not be versioned
+public/words_backup_*.csv
+
+# Generated game/session logs and aggregates (runtime outputs)
+public/stats/
+public/stats_agg/
+
+# Experimental/auxiliary stats outputs not needed in repo
+public/stats_integration_test/
+public/stats_test_additional/
