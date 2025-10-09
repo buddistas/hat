@@ -1,9 +1,0 @@
-{"type":"SESSION_STARTED","ts":1758895932004,"game":{"gameId":"game-1758895931975"}}
-{"type":"START_TURN","ts":1758895932005,"playerId":"p1","round":0}
-{"type":"WORD_SHOWN","ts":1758895932006,"word":"КРЕПОСТЬ"}
-{"type":"WORD_PASSED_COUNT_UPDATED","ts":1758895932007,"word":"КРЕПОСТЬ","count":1}
-{"type":"WORD_DISPLAY_TIME_UPDATED","ts":1758895932007,"word":"КРЕПОСТЬ","displayTimeSeconds":0.001,"totalTimeSeconds":0.001}
-{"type":"WORD_PASSED","ts":1758895932008,"playerId":"p1","round":0}
-{"type":"END_TURN","ts":1758895932008,"playerId":"p1","round":0,"activeMs":3}
-{"type":"ROUND_DURATION_RECORDED","ts":1758895932010,"round":0,"durationSeconds":0.003}
-{"type":"END_ROUND","ts":1758895932011,"round":0,"scores":{"t1":0}}

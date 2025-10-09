@@ -1,7 +1,0 @@
-{"type":"SESSION_STARTED","ts":2000,"game":{"gameId":"g6"}}
-{"type":"START_TURN","ts":3000,"playerId":"p5","round":0}
-{"type":"WORD_GUESSED","ts":6000,"playerId":"p5","round":0}
-{"type":"END_TURN","ts":6000,"playerId":"p5","round":0,"activeMs":3000}
-{"type":"TOTAL_GAME_DURATION_CALCULATED","ts":7000,"totalGameDurationSeconds":0}
-{"type":"SESSION_FACTS_CALCULATED","ts":7000,"facts":{}}
-{"type":"SESSION_ENDED","ts":7000}
