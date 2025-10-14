@@ -22,7 +22,6 @@ class GameService {
     this.endRoundUseCase = new EndRoundUseCase();
     this.turnManagementUseCase = new TurnManagementUseCase();
     
-    this.game = null;
     this.statsService = webSocketHandler ? webSocketHandler.statsService : null;
   }
 
@@ -31,46 +30,47 @@ class GameService {
    */
   async handleEvent(event) {
     const { type, data } = event;
+    const gameId = data && data.gameId ? data.gameId : (this.game && this.game.gameId) || (data && data.options && data.options.gameId) || null;
     
     switch (type) {
       case 'start_game':
         return await this.handleStartGame(data);
         
       case 'next_word':
-        return this.handleNextWord();
+        return await this.handleNextWord(gameId);
         
       case 'word_guessed':
-        return this.handleWordGuessed(data);
+        return await this.handleWordGuessed(gameId, data);
         
       case 'word_passed':
-        return this.handleWordPassed(data);
+        return await this.handleWordPassed(gameId, data);
         
       case 'pause_game':
-        return this.handlePauseGame();
+        return await this.handlePauseGame(gameId);
         
       case 'resume_game':
-        return this.handleResumeGame();
+        return await this.handleResumeGame(gameId);
         
       case 'end_round':
-        return this.handleEndRound(data);
+        return await this.handleEndRound(gameId, data);
         
       case 'continue_round':
-        return this.handleContinueRound();
+        return await this.handleContinueRound(gameId);
         
       case 'time_up':
-        return this.handleTimeUp(data);
+        return await this.handleTimeUp(gameId, data);
         
       case 'start_next_turn':
-        return this.handleStartNextTurn();
+        return await this.handleStartNextTurn(gameId);
         
       case 'round_completed_carried_time':
-        return this.handleRoundCompletedCarriedTime(data);
+        return await this.handleRoundCompletedCarriedTime(gameId, data);
         
       case 'carried_time_used':
-        return this.handleCarriedTimeUsed();
+        return await this.handleCarriedTimeUsed(gameId);
         
       case 'clear_game':
-        return this.handleClearGame();
+        return await this.handleClearGame(gameId);
         
       default:
         console.log('Неизвестное событие:', type);
@@ -82,211 +82,229 @@ class GameService {
    * Обрабатывает начало игры
    */
   async handleStartGame(data) {
-    this.game = await this.startGameUseCase.execute(data);
-    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
-    if (this.statsService) this.statsService.startSession(this.game);
-    return true;
+    const game = await this.startGameUseCase.execute(data);
+    await this.gameRepository.saveGame(game);
+    // Логируем событие
+    if (typeof this.gameRepository.appendEvent === 'function') {
+      await this.gameRepository.appendEvent(game.gameId, { type: 'START_GAME', ts: Date.now(), data });
+    }
+    return { gameId: game.gameId };
   }
 
   /**
    * Обрабатывает получение следующего слова
    */
-  handleNextWord() {
-    if (!this.game) return false;
-    
-    this.nextWordUseCase.execute(this.game);
-    
-    // Отслеживание показа слова для статистики
-    if (this.statsService && this.game.currentWord) {
-      this.statsService.onWordShown(this.game.currentWord);
+  async handleNextWord(gameId) {
+    const game = await this.gameRepository.loadGame(gameId);
+    if (!game) return false;
+    this.nextWordUseCase.execute(game);
+    await this.gameRepository.saveGame(game);
+    if (typeof this.gameRepository.appendEvent === 'function') {
+      await this.gameRepository.appendEvent(game.gameId, { type: 'NEXT_WORD', ts: Date.now() });
     }
-    
     return true;
   }
 
   /**
    * Обрабатывает угаданное слово
    */
-  async handleWordGuessed(data) {
-    if (!this.game) return false;
-    
-    const roundFinished = this.wordGuessedUseCase.execute(this.game, data);
-    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
-    if (this.statsService && this.game.currentPlayer) this.statsService.onWordGuessed(this.game.currentPlayer.id, this.game.currentRound);
-    
+  async handleWordGuessed(gameId, data) {
+    const game = await this.gameRepository.loadGame(gameId);
+    if (!game) return false;
+    const roundFinished = this.wordGuessedUseCase.execute(game, data);
+    await this.gameRepository.saveGame(game);
+    if (typeof this.gameRepository.appendEvent === 'function') {
+      await this.gameRepository.appendEvent(game.gameId, { type: 'WORD_GUESSED', ts: Date.now(), data });
+    }
     if (roundFinished) {
-      this.endRoundUseCase.execute(this.game);
-      // Важно: сначала отправляем обновленное состояние игры,
-      // чтобы клиенты увидели последнюю статистику перед экраном результатов раунда
-      this.webSocketHandler.broadcastGameState();
+      this.endRoundUseCase.execute(game);
+      await this.gameRepository.saveGame(game);
       this.webSocketHandler.broadcastRoundCompleted(
-        this.game.currentRound + 1,
-        this.game.scores
+        game.currentRound + 1,
+        game.scores
       );
     }
-    
-    return !roundFinished; // Возвращаем true только если раунд не завершен
+    return !roundFinished;
   }
 
   /**
    * Обрабатывает пропущенное слово
    */
-  async handleWordPassed(data) {
-    if (!this.game) return false;
-    
-    this.wordPassedUseCase.execute(this.game, data);
-    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
-    if (this.statsService && this.game.currentPlayer) this.statsService.onWordPassed(this.game.currentPlayer.id, this.game.currentRound);
+  async handleWordPassed(gameId, data) {
+    const game = await this.gameRepository.loadGame(gameId);
+    if (!game) return false;
+    this.wordPassedUseCase.execute(game, data);
+    await this.gameRepository.saveGame(game);
+    if (typeof this.gameRepository.appendEvent === 'function') {
+      await this.gameRepository.appendEvent(game.gameId, { type: 'WORD_PASSED', ts: Date.now(), data });
+    }
     return true;
   }
 
   /**
    * Обрабатывает приостановку игры
    */
-  async handlePauseGame() {
-    if (!this.game) return false;
-    
-    this.game.pause();
-    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
-    if (this.statsService) this.statsService.pause();
+  async handlePauseGame(gameId) {
+    const game = await this.gameRepository.loadGame(gameId);
+    if (!game) return false;
+    game.pause();
+    await this.gameRepository.saveGame(game);
+    if (typeof this.gameRepository.appendEvent === 'function') {
+      await this.gameRepository.appendEvent(game.gameId, { type: 'PAUSE', ts: Date.now() });
+    }
     return true;
   }
 
   /**
    * Обрабатывает возобновление игры
    */
-  async handleResumeGame() {
-    if (!this.game) return false;
-    
-    this.game.resume();
-    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
-    if (this.statsService) this.statsService.resume();
+  async handleResumeGame(gameId) {
+    const game = await this.gameRepository.loadGame(gameId);
+    if (!game) return false;
+    game.resume();
+    await this.gameRepository.saveGame(game);
+    if (typeof this.gameRepository.appendEvent === 'function') {
+      await this.gameRepository.appendEvent(game.gameId, { type: 'RESUME', ts: Date.now() });
+    }
     return true;
   }
 
   /**
    * Обрабатывает завершение раунда
    */
-  handleEndRound(data) {
-    if (!this.game) return false;
-    
-    this.endRoundUseCase.execute(this.game, data);
-    if (this.statsService) {
-      this.statsService.endTurn();
-      this.statsService.onEndRound(this.game.currentRound, this.game.scores);
+  async handleEndRound(gameId, data) {
+    const game = await this.gameRepository.loadGame(gameId);
+    if (!game) return false;
+    this.endRoundUseCase.execute(game, data);
+    await this.gameRepository.saveGame(game);
+    if (typeof this.gameRepository.appendEvent === 'function') {
+      await this.gameRepository.appendEvent(game.gameId, { type: 'END_ROUND', ts: Date.now(), data });
     }
-    // Сначала обновленное состояние, затем событие завершения раунда
-    this.webSocketHandler.broadcastGameState();
+    // Передаём номер завершенного раунда в пользовательском представлении (1..3)
     this.webSocketHandler.broadcastRoundCompleted(
-      this.game.currentRound + 1,
-      this.game.scores
+      game.currentRound + 1,
+      game.scores
     );
-    return false; // Не отправляем game_state
+    return false;
   }
 
   /**
    * Обрабатывает продолжение раунда
    */
-  async handleContinueRound() {
-    if (!this.game) return false;
-    
-    const gameFinished = this.turnManagementUseCase.startNextRound(this.game);
-    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
-    
-    if (gameFinished) {
-      if (this.statsService) this.statsService.endSession(this.game);
-      // Сохраняем финальные результаты игры
-      await this.gameRepository.saveGame(this.game);
-      this.webSocketHandler.broadcastGameEnded(this.game);
+  async handleContinueRound(gameId) {
+    const game = await this.gameRepository.loadGame(gameId);
+    if (!game) return false;
+    const gameFinished = this.turnManagementUseCase.startNextRound(game);
+    await this.gameRepository.saveGame(game);
+    if (typeof this.gameRepository.appendEvent === 'function') {
+      await this.gameRepository.appendEvent(game.gameId, { type: 'CONTINUE_ROUND', ts: Date.now() });
     }
-    
+    if (gameFinished) {
+      this.webSocketHandler.broadcastGameEnded(game);
+    }
     return true;
   }
 
   /**
    * Обрабатывает истечение времени
    */
-  async handleTimeUp(data) {
-    if (!this.game) return false;
-    
-    this.turnManagementUseCase.endPlayerTurn(this.game, data);
-    if (this.statsService) {
-      // Передаем время, оставшееся на таймере в момент истечения
-      const timerRemainingAtShow = data && data.timerRemainingAtShow ? data.timerRemainingAtShow : null;
-      this.statsService.endTurn(timerRemainingAtShow);
+  async handleTimeUp(gameId, data) {
+    const game = await this.gameRepository.loadGame(gameId);
+    if (!game) return false;
+    this.turnManagementUseCase.endPlayerTurn(game, data);
+    await this.gameRepository.saveGame(game);
+    if (typeof this.gameRepository.appendEvent === 'function') {
+      await this.gameRepository.appendEvent(game.gameId, { type: 'TIME_UP', ts: Date.now(), data });
     }
     this.webSocketHandler.broadcastHandoffScreen(
-      this.game.nextPlayer,
-      this.game.currentRound
+      game.nextPlayer,
+      game.currentRound
     );
-    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
-    return false; // Не отправляем game_state
+    return false;
   }
 
   /**
    * Обрабатывает начало следующего хода
    */
-  async handleStartNextTurn() {
-    if (!this.game) return false;
-    
-    this.turnManagementUseCase.startNextPlayerTurn(this.game);
-    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
-    if (this.statsService && this.game.currentPlayer) this.statsService.startTurn(this.game.currentPlayer.id, this.game.currentRound);
+  async handleStartNextTurn(gameId) {
+    const game = await this.gameRepository.loadGame(gameId);
+    if (!game) return false;
+    this.turnManagementUseCase.startNextPlayerTurn(game);
+    // Если слова закончились, завершаем раунд немедленно
+    if (game.currentWord == null) {
+      this.endRoundUseCase.execute(game);
+      await this.gameRepository.saveGame(game);
+      if (typeof this.gameRepository.appendEvent === 'function') {
+        await this.gameRepository.appendEvent(game.gameId, { type: 'ROUND_COMPLETED_BY_EXHAUSTION', ts: Date.now() });
+      }
+      this.webSocketHandler.broadcastRoundCompleted(
+        game.currentRound + 1,
+        game.scores
+      );
+      return false; // сигнализируем WS не рассылать game_state
+    }
+    await this.gameRepository.saveGame(game);
+    if (typeof this.gameRepository.appendEvent === 'function') {
+      await this.gameRepository.appendEvent(game.gameId, { type: 'START_NEXT_TURN', ts: Date.now() });
+    }
     return true;
   }
 
   /**
    * Обрабатывает сохранение перенесенного времени
    */
-  async handleRoundCompletedCarriedTime(data) {
-    if (!this.game) return false;
-    
-    this.turnManagementUseCase.saveCarriedTime(this.game, data);
-    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
-    return false; // Не отправляем game_state
+  async handleRoundCompletedCarriedTime(gameId, data) {
+    const game = await this.gameRepository.loadGame(gameId);
+    if (!game) return false;
+    this.turnManagementUseCase.saveCarriedTime(game, data);
+    await this.gameRepository.saveGame(game);
+    if (typeof this.gameRepository.appendEvent === 'function') {
+      await this.gameRepository.appendEvent(game.gameId, { type: 'ROUND_COMPLETED_CARRIED_TIME', ts: Date.now(), data });
+    }
+    return false;
   }
 
   /**
    * Обрабатывает использование перенесенного времени
    */
-  async handleCarriedTimeUsed() {
-    if (!this.game) return false;
-    
-    this.turnManagementUseCase.useCarriedTime(this.game);
-    // Убираем постоянное сохранение состояния - сохраняем только в конце игры
-    return false; // Не отправляем game_state
+  async handleCarriedTimeUsed(gameId) {
+    const game = await this.gameRepository.loadGame(gameId);
+    if (!game) return false;
+    this.turnManagementUseCase.useCarriedTime(game);
+    await this.gameRepository.saveGame(game);
+    if (typeof this.gameRepository.appendEvent === 'function') {
+      await this.gameRepository.appendEvent(game.gameId, { type: 'CARRIED_TIME_USED', ts: Date.now() });
+    }
+    return false;
   }
 
   /**
    * Обрабатывает очистку игры
    */
-  async handleClearGame() {
-    await this.clearGame();
-    return false; // Не отправляем game_state
+  async handleClearGame(gameId) {
+    await this.clearGame(gameId);
+    return false;
   }
 
   /**
    * Получает текущее состояние игры
    */
-  getGameState() {
-    return this.game;
+  async getGameState(gameId) {
+    return await this.gameRepository.loadGame(gameId);
   }
 
   /**
    * Загружает игру из репозитория
    */
-  async loadGame() {
-    this.game = await this.gameRepository.loadGame();
-    return this.game;
+  async loadGame(gameId) {
+    return await this.gameRepository.loadGame(gameId);
   }
 
   /**
    * Очищает игру
    */
-  async clearGame() {
-    if (this.statsService && this.game) this.statsService.endSession(this.game);
-    this.game = null;
-    await this.gameRepository.clearGame();
+  async clearGame(gameId) {
+    await this.gameRepository.clearGame(gameId);
   }
 }
 

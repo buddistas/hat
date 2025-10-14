@@ -4,7 +4,7 @@ class StatsService {
   constructor(fileStatsRepository, webSocketHandler) {
     this.repo = fileStatsRepository;
     this.webSocketHandler = webSocketHandler;
-    this.resetSession();
+    // Убираем in-memory сессию по требованию — храним только в Mongo через репозиторий
   }
 
   resetSession() {
@@ -31,46 +31,14 @@ class StatsService {
     };
   }
 
-  startSession(game) {
-    this.resetSession();
-    this.session.gameId = game.gameId || `game-${Date.now()}`;
-    this.session.startedAt = Date.now();
-    this.repo.startSessionLog(this.session.gameId);
-    this.repo.appendSessionEvent(this.session.gameId, { type: 'SESSION_STARTED', ts: Date.now(), game: { gameId: this.session.gameId } });
-    this.pushSessionUpdate();
+  async startSession(game) {
+    await this.repo.startSessionLog(game.gameId);
+    await this.repo.appendSessionEvent(game.gameId, { type: 'SESSION_STARTED', ts: Date.now(), game: { gameId: game.gameId } });
   }
 
-  endSession(game) {
-    if (!this.session.gameId) return;
-    this.session.endedAt = Date.now();
-    this._finalizeOpenTurnIfAny();
-    
-    // Расчет общей продолжительности партии
-    this._calculateTotalGameDuration();
-    
-    // Расчет фактов сессии
-    this._calculateSessionFacts();
-    
-    this.repo.appendSessionEvent(this.session.gameId, { type: 'SESSION_ENDED', ts: Date.now() });
-    // Apply to player aggregates only if winners exist (repo enforces as well, but avoid work)
-    const winners = this._computeWinners(game);
-    const roundIdxs = [0,1,2];
-    if (winners && winners.winners && winners.winners.length > 0) {
-      for (const [playerId, p] of Object.entries(this.session.perPlayer)) {
-        const totals = { wordsGuessed: 0, wordsPassed: 0, totalScore: p.totalScore || 0, activeMsByRound: {}, guessedByRound: {}, spwByRound: {}, bestTurnByRound: p.bestTurnByRound || {0:0,1:0,2:0} };
-        roundIdxs.forEach(r => {
-          const activeMs = (p.roundActiveMs && p.roundActiveMs[r]) || 0;
-          const guessed = (p.guessedByRound && p.guessedByRound[r]) || 0;
-          totals.activeMsByRound[r] = activeMs;
-          totals.guessedByRound[r] = guessed;
-          totals.wordsGuessed += guessed;
-          totals.wordsPassed += ((p.passedByRound && p.passedByRound[r]) || 0);
-          totals.spwByRound[r] = guessed > 0 ? (activeMs / 1000) / guessed : null;
-        });
-        this.repo.applyPlayerSessionTotals(game, playerId, totals, winners);
-      }
-    }
-    this.repo.finishSessionLog(this.session.gameId);
+  async endSession(game) {
+    // В текущем задании детальная in-memory сессия не требуется; фиксируем только маркер окончания и оставляем агрегирование на стороне уже накопленных данных событий или внешней логики
+    await this.repo.appendSessionEvent(game.gameId, { type: 'SESSION_ENDED', ts: Date.now() });
     this.pushLeaderboardUpdate();
   }
 
@@ -364,15 +332,15 @@ class StatsService {
   }
 
   getSessionSnapshot() {
-    return this.session;
+    return null;
   }
 
-  getPlayerStats(playerKey) {
-    return this.repo.readPlayerStats(playerKey);
+  async getPlayerStats(playerKey) {
+    return await this.repo.readPlayerStats(playerKey);
   }
 
-  getLeaderboard(metric) {
-    return this.repo.readLeaderboard(metric);
+  async getLeaderboard(metric) {
+    return await this.repo.readLeaderboard(metric);
   }
 
   pushSessionUpdate() {

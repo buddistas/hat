@@ -21,8 +21,7 @@ class WebSocketHandler {
       console.log('Новое WebSocket подключение');
       this.clients.add(ws);
       
-      // Отправка текущего состояния игры новому клиенту
-      this.sendGameState(ws);
+      // Клиент должен прислать gameId в первом сообщении, иначе не знаем что отправлять
       
       ws.on('message', (message) => {
         this.handleMessage(ws, message);
@@ -45,25 +44,35 @@ class WebSocketHandler {
    */
   async handleMessage(ws, message) {
     try {
-      const event = JSON.parse(message);
+      const raw = typeof message === 'string' ? message : message.toString('utf8');
+      const event = JSON.parse(raw);
       console.log('Получено событие:', event.type);
-      
+      // Гарантируем наличие контейнера data и gameId (fallback к последнему для сокета)
+      if (!event.data) event.data = {};
+      // Если старт игры без gameId — сгенерируем и запомним на сокете
+      if (event.type === 'start_game' && !event.data.gameId) {
+        event.data.gameId = `game-${Date.now()}`;
+      }
+      if (!event.data.gameId && ws._gameId) event.data.gameId = ws._gameId;
+
       const result = await this.gameService.handleEvent(event);
-      
-      if (result) {
-        this.broadcastGameState();
+      const gameId = (event && event.data && event.data.gameId) || (result && result.gameId) || null;
+      if (gameId && !ws._gameId) ws._gameId = gameId;
+      if (gameId) {
+        await this.sendGameState(ws, gameId);
+        this.broadcastGameState(gameId);
       }
     } catch (error) {
-      console.error('Ошибка парсинга сообщения:', error);
-      this.sendError(ws, 'Неверный формат сообщения');
+      console.error('Ошибка обработки сообщения:', error);
+      this.sendError(ws, error && error.message ? error.message : 'Ошибка обработки сообщения');
     }
   }
 
   /**
    * Отправляет состояние игры клиенту
    */
-  sendGameState(ws) {
-    const gameState = this.gameService.getGameState();
+  async sendGameState(ws, gameId) {
+    const gameState = await this.gameService.getGameState(gameId);
     if (gameState) {
       this.sendMessage(ws, {
         type: 'game_state',
@@ -75,8 +84,8 @@ class WebSocketHandler {
   /**
    * Отправляет состояние игры всем клиентам
    */
-  broadcastGameState() {
-    const gameState = this.gameService.getGameState();
+  async broadcastGameState(gameId) {
+    const gameState = await this.gameService.getGameState(gameId);
     if (gameState) {
       this.broadcastMessage({
         type: 'game_state',

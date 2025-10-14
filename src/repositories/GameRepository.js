@@ -13,17 +13,19 @@ class GameRepository {
 
   /**
    * Загружает состояние игры
+   * @param {string} gameId
    * @returns {Promise<Game>}
    */
-  async loadGame() {
+  async loadGame(gameId) {
     throw new Error('Method loadGame must be implemented');
   }
 
   /**
    * Очищает состояние игры
+   * @param {string} gameId
    * @returns {Promise<void>}
    */
-  async clearGame() {
+  async clearGame(gameId) {
     throw new Error('Method clearGame must be implemented');
   }
 }
