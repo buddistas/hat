@@ -24,6 +24,8 @@ Thumbs.db
 .idea/
 
 # Env files
+node_modules/**/*
+.idea
 .env
 .env.*.local
 *.local

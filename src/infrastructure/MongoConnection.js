@@ -23,10 +23,7 @@ class MongoConnection {
       const config = databaseConfig.getMongoConfig();
       console.log(`Подключение к MongoDB: ${config.uri}`);
       
-      this.client = new MongoClient(config.uri, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      });
+      this.client = new MongoClient(config.uri);
 
       await this.client.connect();
       this.db = this.client.db(config.database);

@@ -457,7 +457,7 @@
 
     <script>
         let ws;
-        let gameState = {};
+        let gameState = null;
         let gameSetup = {
             players: [],
             teams: [],
@@ -914,6 +914,8 @@
                 
                 if (message.type === 'game_state') {
                     gameState = message.data;
+                    // Сбрасываем временный gameId, если он был
+                    try { window.__pendingGameId = null; } catch(e) {}
                     console.log('Получен game_state с playerCarriedTime:', gameState.playerCarriedTime);
                     updateGameDisplay();
                     
@@ -923,8 +925,8 @@
                     const isOnRoundScoresScreen = document.getElementById('roundScoresScreen').classList.contains('active');
                     
                     if (isOnRulesScreen || isOnRoundScoresScreen) {
-                        // Показываем экран представления игрока для нового раунда
-                        showPlayerIntroScreen();
+                        // На экранах правил/итогов не автозапускаем таймер и не показываем intro
+                        // Ожидаем пользовательское действие (кнопка) для старта раунда/хода
                     } else if (document.getElementById('gameScreen').classList.contains('active') && !timerState.isRunning) {
                         // Если мы на экране игры и таймер не запущен, запускаем его с учетом carriedTime
                         const currentPlayerCarriedTime = gameState.playerCarriedTime && gameState.currentPlayer 
@@ -985,6 +987,15 @@
                 } else if (message.type === 'handoff_screen') {
                     console.log('Получено событие handoff_screen:', message.data);
                     showHandoffScreen(message.data);
+                // Авто‑старт следующего хода только если НЕ показываются экраны правил/итогов раунда
+                const isRulesOrRoundResults = document.getElementById('rulesScreen2').classList.contains('active') ||
+                                              document.getElementById('rulesScreen3').classList.contains('active') ||
+                                              document.getElementById('roundScoresScreen').classList.contains('active');
+                if (!isRulesOrRoundResults) {
+                    setTimeout(() => {
+                        try { sendEvent('start_next_turn'); } catch (e) { console.warn('Авто‑старт не удался:', e); }
+                    }, 100);
+                }
                 } else if (message.type === 'error') {
                     alert('Ошибка: ' + message.message);
                 }
@@ -1016,7 +1027,16 @@
 
         function sendEvent(type, data = {}) {
             if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type, data }));
+                const payload = { ...data };
+                if (!payload.gameId && gameState && gameState.gameId) {
+                    payload.gameId = gameState.gameId;
+                }
+                // Если это старт игры и gameId ещё не назначен, проставим временный до ответа сервера
+                if (type === 'start_game' && !payload.gameId) {
+                    payload.gameId = `game-${Date.now()}`;
+                    try { window.__pendingGameId = payload.gameId; } catch(e) {}
+                }
+                ws.send(JSON.stringify({ type, data: payload }));
             } else {
                 console.error('WebSocket не подключен');
             }
@@ -1331,23 +1351,19 @@
         }
 
         function startSecondRound() {
-            // Обновляем локальную статистику - раунд 1 начат
-            onRoundStarted(1);
-            
-            // Переходим к следующему раунду
+            // Переходим к следующему раунду (сервер сам установит currentRound=1)
             sendEvent('continue_round');
-            console.log('startSecondRound - ждем обновления game_state для показа экрана представления игрока');
-            // Экран представления игрока будет показан после получения обновленного game_state
+            // Показываем экран представления игрока вместо прямого перехода к игре
+            showPlayerIntroScreen();
+            console.log('startSecondRound - отправлен continue_round');
         }
 
         function startThirdRound() {
-            // Обновляем локальную статистику - раунд 2 начат
-            onRoundStarted(2);
-            
             // Переходим к следующему раунду
             sendEvent('continue_round');
-            console.log('startThirdRound - ждем обновления game_state для показа экрана представления игрока');
-            // Экран представления игрока будет показан после получения обновленного game_state
+            // Показываем экран представления игрока вместо прямого перехода к игре
+            showPlayerIntroScreen();
+            console.log('startThirdRound - отправлен continue_round');
         }
 
 
@@ -1577,22 +1593,11 @@
 
         function continueToNextRound() {
             const nextRound = gameState.currentRound + 1;
-            
-            if (nextRound > 3) {
-                // Игра завершена, показываем финальные результаты
-                showResults();
-            } else {
-                // После первого раунда показываем правила второго раунда вместо мгновенного старта
-                if (nextRound === 2) {
-                    showScreen('rulesScreen2');
-                } else {
-                    // Для переходов, не требующих экрана правил, продолжаем сразу
-                    sendEvent('continue_round');
-                    showScreen('gameScreen');
-                    console.log('continueToNextRound - ждем обновления game_state для запуска таймера');
-                    // Таймер будет запущен после получения обновленного game_state
-                }
-            }
+            if (nextRound > 3) { showResults(); return; }
+            if (nextRound === 2) { showScreen('rulesScreen2'); return; }
+            sendEvent('continue_round');
+            showScreen('gameScreen');
+            console.log('continueToNextRound - continue_round отправлен');
         }
 
         function showResults() {
@@ -1862,7 +1867,7 @@
         }
         function initSessionStats() {
             sessionStats = {
-                gameId: gameState.gameId || `game-${Date.now()}`,
+                gameId: (gameState && gameState.gameId) || (window.__pendingGameId || `game-${Date.now()}`),
                 startedAt: Date.now(),
                 endedAt: null,
                 duration: {

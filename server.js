@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 
 // Импорт наших классов
 const repositoryFactory = require('./src/infrastructure/RepositoryFactory');
@@ -8,115 +9,184 @@ const WebSocketHandler = require('./src/infrastructure/WebSocketHandler');
 const StatsService = require('./src/infrastructure/StatsService');
 const mongoConnection = require('./src/infrastructure/MongoConnection');
 
-// Импорт Telegram-бота
-const TelegramBotService = require('./src/telegram/TelegramBot');
-const TelegramApiService = require('./src/telegram/TelegramApi');
-const telegramConfig = require('./telegram-config');
-
 const app = express();
 const PORT = process.env.PORT || 4000;
-
-// Middleware для парсинга JSON
-app.use(express.json());
 
 // Раздача статических файлов
 app.use(express.static('public'));
 // Serve Sound assets (mp3 files)
 app.use('/Sound', express.static('Sound'));
 
-// Создание HTTP сервера
-const server = app.listen(PORT, () => {
-  console.log(`Сервер запущен на http://localhost:${PORT}`);
-});
+let server;
+let webSocketHandler;
+let gameService;
+let statsService;
 
-// Инициализация репозиториев через фабрику
-const wordRepository = repositoryFactory.createWordRepository();
-const gameRepository = repositoryFactory.createGameRepository();
-const statsRepository = repositoryFactory.createStatsRepository();
-
-// Инициализация WebSocket обработчика
-const webSocketHandler = new WebSocketHandler(server, null);
-
-// Инициализация игрового сервиса
-const gameService = new GameService(wordRepository, gameRepository, webSocketHandler);
-const statsService = new StatsService(statsRepository, webSocketHandler);
-webSocketHandler.statsService = statsService;
-gameService.statsService = statsService;
-
-// Устанавливаем gameService в WebSocketHandler
-webSocketHandler.gameService = gameService;
-
-// Инициализация Telegram-бота
-let telegramBot = null;
-let telegramApi = null;
-
-if (telegramConfig.TELEGRAM_BOT_TOKEN) {
+// Подключение к Mongo и запуск HTTP/WSS (фатально при ошибке)
+(async () => {
   try {
-    console.log('🔄 Инициализация Telegram-бота...');
-    telegramBot = new TelegramBotService(telegramConfig.TELEGRAM_BOT_TOKEN, gameService, statsService);
-    telegramApi = new TelegramApiService(gameService, statsService);
-    
-    // Подключаем API роуты для Telegram-бота
-    app.use('/', telegramApi.getRouter());
-    
-    console.log('🤖 Telegram-бот инициализирован успешно');
-  } catch (error) {
-    console.error('❌ Ошибка инициализации Telegram-бота:', error.message);
-    console.log('⚠️ Сервер будет работать без Telegram-бота');
-    
-    // Создаем API без бота для тестирования
-    telegramApi = new TelegramApiService(gameService, statsService);
-    app.use('/', telegramApi.getRouter());
-  }
-} else {
-  console.log('⚠️ TELEGRAM_BOT_TOKEN не установлен, Telegram-бот отключен');
-  
-  // Создаем API без бота для тестирования
-  telegramApi = new TelegramApiService(gameService, statsService);
-  app.use('/', telegramApi.getRouter());
-}
+    await mongoConnection.connect();
+    await mongoConnection.createIndexes();
+    console.log('MongoDB connected and indexes ensured');
 
-// Выводим информацию о конфигурации
-console.log('🔧 Конфигурация репозиториев:', repositoryFactory.getConfigurationInfo());
+    // Seed words collection if empty (one-time bootstrap after migration to Mongo)
+    const db = mongoConnection.getDatabase();
+    const wordsCount = await db.collection('words').countDocuments();
+    if (wordsCount === 0) {
+      console.log('Words collection is empty. Seeding from backups or defaults...');
+      const publicDir = path.join(__dirname, 'public');
+      const backupFiles = fs.readdirSync(publicDir)
+        .filter(f => f.startsWith('words_backup_') && f.endsWith('.csv'))
+        .map(f => path.join(publicDir, f))
+        .sort();
+
+      const parseCSVLine = (line) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+            else { inQuotes = !inQuotes; }
+          } else if (ch === ',' && !inQuotes) {
+            result.push(current.trim()); current = '';
+          } else { current += ch; }
+        }
+        result.push(current.trim());
+        return result;
+      };
+
+      // Функция парсинга и вставки слов из CSV файла
+      const seedFromCSV = async (csvPath) => {
+        if (!fs.existsSync(csvPath)) return 0;
+        
+        console.log('Seeding words from', csvPath);
+        const raw = fs.readFileSync(csvPath, 'utf8');
+        const hasNewlines = raw.includes('\n');
+        let entries = [];
+        
+        if (hasNewlines) {
+          const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+          let startIndex = 0;
+          const headerCandidate = (lines[0] || '').toLowerCase();
+          if (headerCandidate.includes('слово') || headerCandidate.includes('word')) startIndex = 1;
+          for (let i = startIndex; i < lines.length; i++) {
+            const cols = parseCSVLine(lines[i]);
+            if (!cols.length) continue;
+            const word = (cols[0] || '').trim();
+            if (!word) continue;
+            const category = (cols[1] || '').trim() || null;
+            const level = (cols[2] || '').trim().toLowerCase() || null;
+            entries.push({ word: word.toUpperCase(), category, level, createdAt: new Date() });
+          }
+        } else {
+          const flat = raw.split(',').map(w => w.trim()).filter(w => w.length > 0);
+          entries = flat.map(w => ({ word: w.toUpperCase(), category: null, level: null, createdAt: new Date() }));
+        }
+        
+        if (entries.length === 0) return 0;
+        
+        console.log(`Parsed ${entries.length} words, inserting...`);
+        const bulk = db.collection('words').initializeUnorderedBulkOp();
+        entries.forEach(e => bulk.find({ word: e.word }).upsert().updateOne({ $setOnInsert: e }));
+        const res = await bulk.execute();
+        // MongoDB driver 4.0+ использует upsertedCount вместо nUpserted
+        const count = res.upsertedCount || res.nUpserted || 0;
+        console.log(`Bulk upsert result: inserted=${count}, matched=${res.matchedCount || 0}`);
+        return count;
+      };
+
+      let seeded = 0;
+      
+      // 1. Пробуем загрузить из backup файлов (самый свежий)
+      if (backupFiles.length > 0) {
+        const latest = backupFiles[backupFiles.length - 1];
+        seeded = await seedFromCSV(latest);
+      }
+
+      // 2. Если backup нет или пустой — используем default_words.csv
+      if (seeded === 0) {
+        const defaultWordsPath = path.join(publicDir, 'default_words.csv');
+        seeded = await seedFromCSV(defaultWordsPath);
+      }
+
+      // 3. Крайний fallback — минимальный набор слов
+      if (seeded === 0) {
+        console.log('No word files found. Seeding minimal default words...');
+        const defaults = ['ТЕСТ', 'СЛОВО', 'ИГРА', 'ШЛЯПА', 'СОБАКА', 'КОШКА', 'ДОМ', 'МАШИНА', 'КНИГА', 'ТЕЛЕФОН'].map(w => ({ word: w, category: null, level: 'обычный', createdAt: new Date() }));
+        try {
+          const insertResult = await db.collection('words').insertMany(defaults, { ordered: false });
+          seeded = insertResult.insertedCount;
+        } catch (bulkError) {
+          if (bulkError.insertedCount !== undefined) {
+            seeded = bulkError.insertedCount;
+          }
+        }
+      }
+      console.log(`Words seeded: ${seeded}`);
+    }
+
+    server = app.listen(PORT, () => {
+      console.log(`Сервер запущен на http://localhost:${PORT}`);
+    });
+
+    // Инициализация репозиториев через фабрику
+    const wordRepository = repositoryFactory.createWordRepository();
+    const gameRepository = repositoryFactory.createGameRepository();
+    const statsRepository = repositoryFactory.createStatsRepository();
+
+    // Инициализация WebSocket обработчика
+    webSocketHandler = new WebSocketHandler(server, null);
+
+    // Инициализация сервисов
+    gameService = new GameService(wordRepository, gameRepository, webSocketHandler);
+    statsService = new StatsService(statsRepository, webSocketHandler);
+    webSocketHandler.statsService = statsService;
+    gameService.statsService = statsService;
+    webSocketHandler.gameService = gameService;
+
+    // Выводим информацию о конфигурации
+    console.log('🔧 Конфигурация репозиториев:', repositoryFactory.getConfigurationInfo());
+  } catch (err) {
+    console.error('Failed to initialize application:', err.message);
+    process.exit(1);
+  }
+})();
 // Простейшие API для чтения статистики
-app.get('/api/stats/player/:playerKey', (req, res) => {
-  const data = statsService.getPlayerStats(req.params.playerKey);
-  if (!data) return res.status(404).json({ error: 'not_found' });
-  res.json(data);
-});
-
-app.get('/api/stats/leaderboard/:metric', (req, res) => {
-  const data = statsService.getLeaderboard(req.params.metric);
-  res.json(data);
-});
-
-app.get('/api/stats/session/:gameId', (req, res) => {
-  console.log(`API /api/stats/session/${req.params.gameId} - запрос статистики сессии`);
-  const snap = statsService.getSessionSnapshot();
-  console.log('API - session snapshot:', snap);
-  
-  if (!snap || snap.gameId !== req.params.gameId) {
-    console.log(`API - сессия не найдена. Запрошенный gameId: ${req.params.gameId}, текущий: ${snap?.gameId || 'null'}`);
-    return res.status(404).json({ error: 'not_found' });
+app.get('/api/stats/player/:playerKey', async (req, res) => {
+  try {
+    const data = await statsService.getPlayerStats(req.params.playerKey);
+    if (!data) return res.status(404).json({ error: 'not_found' });
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: 'internal_error' });
   }
-  
-  console.log('API - возвращаем данные сессии');
-  res.json(snap);
+});
+
+app.get('/api/stats/leaderboard/:metric', async (req, res) => {
+  try {
+    const data = await statsService.getLeaderboard(req.params.metric);
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// В новой модели сессии в Mongo нет эпхемерного снапшота; можно удалить эндпоинт или отдавать финальные данные игры из коллекции games
+app.get('/api/stats/session/:gameId', async (req, res) => {
+  try {
+    const game = await gameRepository.loadGame(req.params.gameId);
+    if (!game) return res.status(404).json({ error: 'not_found' });
+    res.json(game);
+  } catch (e) {
+    res.status(500).json({ error: 'internal_error' });
+  }
 });
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('Завершение работы сервера...');
-  
-  // Останавливаем Telegram-бота
-  if (telegramBot) {
-    try {
-      telegramBot.stopPolling();
-      console.log('Telegram-бот остановлен');
-    } catch (error) {
-      console.error('Ошибка остановки Telegram-бота:', error.message);
-    }
-  }
   
   // Закрываем WebSocket соединения
   webSocketHandler.close();
