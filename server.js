@@ -57,13 +57,15 @@ let statsService;
         return result;
       };
 
-      let seeded = 0;
-      if (backupFiles.length > 0) {
-        const latest = backupFiles[backupFiles.length - 1];
-        console.log('Seeding words from', latest);
-        const raw = fs.readFileSync(latest, 'utf8');
+      // Функция парсинга и вставки слов из CSV файла
+      const seedFromCSV = async (csvPath) => {
+        if (!fs.existsSync(csvPath)) return 0;
+        
+        console.log('Seeding words from', csvPath);
+        const raw = fs.readFileSync(csvPath, 'utf8');
         const hasNewlines = raw.includes('\n');
         let entries = [];
+        
         if (hasNewlines) {
           const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
           let startIndex = 0;
@@ -82,19 +84,45 @@ let statsService;
           const flat = raw.split(',').map(w => w.trim()).filter(w => w.length > 0);
           entries = flat.map(w => ({ word: w.toUpperCase(), category: null, level: null, createdAt: new Date() }));
         }
-        if (entries.length > 0) {
-          const bulk = db.collection('words').initializeUnorderedBulkOp();
-          entries.forEach(e => bulk.find({ word: e.word }).upsert().updateOne({ $setOnInsert: e }));
-          const res = await bulk.execute();
-          seeded = res.nUpserted || 0;
-        }
+        
+        if (entries.length === 0) return 0;
+        
+        console.log(`Parsed ${entries.length} words, inserting...`);
+        const bulk = db.collection('words').initializeUnorderedBulkOp();
+        entries.forEach(e => bulk.find({ word: e.word }).upsert().updateOne({ $setOnInsert: e }));
+        const res = await bulk.execute();
+        // MongoDB driver 4.0+ использует upsertedCount вместо nUpserted
+        const count = res.upsertedCount || res.nUpserted || 0;
+        console.log(`Bulk upsert result: inserted=${count}, matched=${res.matchedCount || 0}`);
+        return count;
+      };
+
+      let seeded = 0;
+      
+      // 1. Пробуем загрузить из backup файлов (самый свежий)
+      if (backupFiles.length > 0) {
+        const latest = backupFiles[backupFiles.length - 1];
+        seeded = await seedFromCSV(latest);
       }
 
+      // 2. Если backup нет или пустой — используем default_words.csv
       if (seeded === 0) {
-        console.log('No backup found or empty. Seeding default minimal words...');
-        const defaults = ['ТЕСТ', 'СЛОВО', 'ИГРА', 'ШЛЯПА'].map(w => ({ word: w, category: null, level: 'обычный', createdAt: new Date() }));
-        await db.collection('words').insertMany(defaults);
-        seeded = defaults.length;
+        const defaultWordsPath = path.join(publicDir, 'default_words.csv');
+        seeded = await seedFromCSV(defaultWordsPath);
+      }
+
+      // 3. Крайний fallback — минимальный набор слов
+      if (seeded === 0) {
+        console.log('No word files found. Seeding minimal default words...');
+        const defaults = ['ТЕСТ', 'СЛОВО', 'ИГРА', 'ШЛЯПА', 'СОБАКА', 'КОШКА', 'ДОМ', 'МАШИНА', 'КНИГА', 'ТЕЛЕФОН'].map(w => ({ word: w, category: null, level: 'обычный', createdAt: new Date() }));
+        try {
+          const insertResult = await db.collection('words').insertMany(defaults, { ordered: false });
+          seeded = insertResult.insertedCount;
+        } catch (bulkError) {
+          if (bulkError.insertedCount !== undefined) {
+            seeded = bulkError.insertedCount;
+          }
+        }
       }
       console.log(`Words seeded: ${seeded}`);
     }

@@ -1353,14 +1353,16 @@
         function startSecondRound() {
             // Переходим к следующему раунду (сервер сам установит currentRound=1)
             sendEvent('continue_round');
-            showScreen('gameScreen');
+            // Показываем экран представления игрока вместо прямого перехода к игре
+            showPlayerIntroScreen();
             console.log('startSecondRound - отправлен continue_round');
         }
 
         function startThirdRound() {
             // Переходим к следующему раунду
             sendEvent('continue_round');
-            showScreen('gameScreen');
+            // Показываем экран представления игрока вместо прямого перехода к игре
+            showPlayerIntroScreen();
             console.log('startThirdRound - отправлен continue_round');
         }
 
